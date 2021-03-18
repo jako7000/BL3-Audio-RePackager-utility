@@ -1,0 +1,17 @@
+# Extracted & converted files
+*.pak
+*.pak_ORIGINAL
+extracted/*
+*.wem
+*.bnk
+converted/*
+keep/*
+delete/*
+*.ogg
+
+# External programs
+*.exe
+*.bms
+*.bin
+ww2ogg*/*
+quickbms/*
