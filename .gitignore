@@ -1,6 +1,7 @@
 # Extracted & converted files
 *.pak
 *.pak_ORIGINAL
+*.bl3as*
 extracted/*
 *.wem
 *.bnk

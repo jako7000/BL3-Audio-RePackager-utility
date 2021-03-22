@@ -29,6 +29,10 @@ IF "%1" == "convert" (
     CALL :RunWemConverter %2 %3 %4
     EXIT /B 0
 )
+IF "%1" == "serialize" (
+    CALL :Serialize
+    EXIT /B 0
+)
 CALL :ExtractAndConvert
 EXIT /B 0
 
@@ -96,7 +100,13 @@ IF %convertToOGG% EQU 1 (
     CALL :RunWemConverter 1 %ww2oggFilePath% %revorbFilePath%
     CALL :Sleep 5 "File cleaning will begin in a moment." "Starting cleaning.."
     CALL :CleanTemps
+
+    echo Listen to the .ogg files in "converted" folder.
+    echo Move the sound files you don't like to "delete" folder,
+    echo and the sound files you do like to "keep" folder.
 )
+
+echo.
 echo Press any key to close the program.
 TIMEOUT -1 > NUL
 EXIT /B 0
@@ -139,6 +149,25 @@ IF "!intNumber!" == "" (
     set /A %~1=!intNumber!
 )
 echo.
+EXIT /B 0
+
+@REM Desc; Asks the user for a string
+:AskString
+@REM Params; 1: Output variable, 2: Question string
+set /P intString= "%~2: "
+IF "!intString!" == "" (
+    echo Invalid input.
+    CALL :AskString stringRetry "%~2"
+    set %~1=!stringRetry!
+) ELSE (
+    CALL :AskBoolean isVanted "Is "%intString%" correct?"
+    IF !isVanted! EQU 1 (
+        set %~1=%intString%
+    ) ELSE (
+        CALL :AskString stringRetry "%~2"
+        set %~1=!stringRetry!
+    )
+)
 EXIT /B 0
 
 @REM Desc; Asks the user to type a file path
@@ -215,6 +244,12 @@ set extraLongString="                                                         %~
 set quotelessString=%extraLongString:"=%
 CALL set normalizedString=%%quotelessString:~-%length%%%
 set %~3=%normalizedString%
+EXIT /B 0
+
+@REM Desc; removes path & file extension from file name
+:CleanFileName
+@REM Params; 1: File path/name, 2: Putput variable
+FOR /F "tokens=1 delims=." %%l IN ("%~n1") DO set %~2=%%l
 EXIT /B 0
 
 
@@ -408,6 +443,54 @@ DEL %tempKeyFileName%
 echo.
 echo QuickBMS has completed the packaging.
 echo.
+EXIT /B 0
+
+
+
+
+
+@REM Desc; Saves file names in "delete" folder into a .txt file.
+:Serialize
+@REM Params; none
+echo With this utility you can save the files you've removed from the .pak file into a .txt text file.
+echo This way you can easily backup ^& share your selections with other people.
+echo.
+
+@REM ToDo: First check if any files in "delete", if not, error out
+
+echo Have you moved the .ogg files you want to remove to the "delete" folder,
+CALL :AskBoolean hasRemoved "and the ones you want to keep to the "keep" folder?"
+IF %hasRemoved% EQU 0 (
+    echo.
+    echo Since you haven't sorted the files you want to remove or keep yet,
+    echo please run Extract.bat to extract ^& convert the sound files from pakchunk3-WindowsNoEditor.pak.
+    echo Sound files need to be present in the "delete" and/or "keep" folders.
+    EXIT /B 0
+)
+
+CALL :AskString receivedName "What would you like to call the save file?"
+CALL :CleanFileName %receivedName% outputName
+set outputFile=!outputName!.bl3as.txt
+
+set /A toDelete = 0
+set /A toKeep = 0
+
+@REM echo. > %outputFile%
+echo [delete] > %outputFile%
+FOR %%d IN ("delete\*.*") DO (
+    set /A toDelete+=1
+    echo %%~nd >> %outputFile%
+)
+echo. >> %outputFile%
+echo [keep] >> %outputFile%
+for %%k IN ("keep\*.*") DO (
+    set /A toKeep+=1
+    echo %%~nk >> %outputFile%
+)
+
+echo.
+echo File configuration saved to %outputFile%.
+echo !toDelete! files to remove, !toKeep! files to keep.
 EXIT /B 0
 
 
