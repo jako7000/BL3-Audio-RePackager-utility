@@ -11,6 +11,9 @@ set FileSelectDialog=powershell -noprofile -command "&{[System.Reflection.Assemb
 
 
 
+
+
+@REM Desc; Processes parameters, sets global variables & selects task 
 :Main
 @REM Params; 1: mode "package" | "convert"
 @REM Mode: "package"; 2: Thread number, 3: ww2ogg.exe path, 4: revorb.exe path
@@ -29,17 +32,21 @@ IF "%1" == "convert" (
 CALL :ExtractAndConvert
 EXIT /B 0
 
+
+
+@REM Desc; The "UI" variable set in this function is to be used globally.
+@REM       0 = Only command prompt, 1 = Windows file explorer for selecting files & folders
 :SetUI
-@REM The "UI" variable set in this function is to be used globally.
-@REM 0 = Only command prompt, 1 = Windows file explorer for selecting files & folders
+@REM Params; Parameters given to the program
 set /A UI=1
 IF /I "%~1" == "-noUI" set /A UI=0
 IF /I "%~2" == "-noUI" set /A UI=0
 IF /I "%~3" == "-noUI" set /A UI=0
 EXIT /B 0
 
+@REM Desc; Sets the "sleepDurationPerMinute" variable to be used globally.
 :SetSleepDuration
-@REM Sets the "sleepDurationPerMinute" variable to be used globally.
+@REM Params; Parameters given to the program
 IF /I "%~1" == "-sleep" set /A sleepDurationPerMinute=%~2
 IF /I "%~2" == "-sleep" set /A sleepDurationPerMinute=%~3
 IF /I "%~3" == "-sleep" set /A sleepDurationPerMinute=%~4
@@ -49,7 +56,13 @@ IF /I "%~6" == "-sleep" set /A sleepDurationPerMinute=%~7
 @REM This technique is very sophisticated, I know.
 EXIT /B 0
 
+
+
+
+
+@REM Desc; Directs process flow to extract & convert voice lines from the .pak file.
 :ExtractAndConvert
+@REM Params; none
 CALL :AskBoolean extractWEMs "Would you like to extract .wem files from a .pak file?"
 CALL :AskBoolean convertToOGG "Would you like to convert .wem files to .ogg format?"
 IF %extractWEMs% EQU 0 IF %convertToOGG% EQU 0 (
@@ -72,7 +85,6 @@ IF %convertToOGG% EQU 1 (
     CALL :AskNumber threadCount 1 9 3
 )
 
-
 IF %extractWEMs%  EQU 1 CALL :Extract %qbmsFilePath% %scriptFilePath% %pakFilePath% extracted^\
 
 CALL :MakeFolder keep
@@ -93,8 +105,9 @@ EXIT /B 0
 
 
 
-@REM intVariable is shorthand for internal variable
+@REM Desc; Ask the user a Yes/No question
 :AskBoolean
+@REM Params; 1: Output variable, 2: Question string
 set /P intBoolean= "%~2 (Y/N): "
 IF /I "%intBoolean%" == "y" (
     set /A %~1=1
@@ -108,7 +121,9 @@ IF /I "%intBoolean%" == "y" (
 )
 EXIT /B 0
 
+@REM Desc; Asks the user a number question
 :AskNumber
+@REM Params; 1: Output variable, 2: Min, 3: Max, 4: Default
 set /P intNumber= "Press ENTER for %~4. (%~2-%~3): "
 IF "!intNumber!" == "" (
     set /A %~1=%~4
@@ -126,19 +141,25 @@ IF "!intNumber!" == "" (
 echo.
 EXIT /B 0
 
+@REM Desc; Asks the user to type a file path
 :AskFilePath
+@REM Params; 1: File name, 2: Output variable
 set /P intPath= "Please give path to %~nx1 file: "
 set %~2="%intPath%\%~1"
 EXIT /B 0
 
+@REM Desc; Asks the user to select a file with the windows file exporer
 :DialogFilePath
+@REM Params; 1: File name, 2: Output variable
 echo Please give path to %~nx1 file:
 TIMEOUT 1 > NUL
 FOR /F "delims=" %%i IN ('%FileSelectDialog%') DO set "intPath=%%~dpi"
 set %~2="%intPath%%~1"
 EXIT /B 0
 
+@REM Desc; Searches project directory for the file, if not found, asks the user
 :GetFile
+@REM Params; 1: File name, 2: Output variable
 IF EXIST %~1 (
     echo Found %~nx1 file from
     echo    %~dpnx1
@@ -159,15 +180,23 @@ IF EXIST %~1 (
 )
 EXIT /B 0
 
+
+
+@REM Desc; Creates a folder to the project directory
 :MakeFolder
+@REM Params; 1: Folder name
 IF NOT EXIST %~dpn1 MD %~n1
 EXIT /B 0
 
+@REM Desc; Removes a folder from the project directory
 :RemoveFolder
+@REM Params; 2: Folder name
 IF EXIST %~f1 RMDIR /S /Q %~f1
 EXIT /B 0
 
+@REM Desc; Sleeps for a given amount, displaying a updating message 
 :Sleep
+@REM Params; 1: Duration, 2: Start message, 3: End message
 echo %~2
 FOR /F %%a IN ('copy /Z "%~dpf0" nul') DO set "CR=%%a"
 FOR /L %%s IN (%~1, -1, 1) DO (
@@ -178,8 +207,21 @@ FOR /L %%s IN (%~1, -1, 1) DO (
 echo .
 EXIT /B 0
 
+@REM Desc; Adds spacing to the start of a value so it has a given length
+:NormalizeLength
+@REM Params; 1: Length, 2: Value, 3: Return value
+set /A length=%~1 
+set extraLongString="                                                         %~2"
+set quotelessString=%extraLongString:"=%
+CALL set normalizedString=%%quotelessString:~-%length%%%
+set %~3=%normalizedString%
+EXIT /B 0
 
 
+
+
+
+@REM Desc; Manages the .wem to .ogg conversion process flow
 :RunWemConverter
 @REM Params; 1: Thread number, 2: ww2ogg.exe path, 3: revorb.exe path
 echo Starting .wem to .ogg conversion...
@@ -201,7 +243,6 @@ FOR /F %%f IN ('dir /B /O:%sortOrder% extracted^\*.WEM') DO (
         set /A filesConverted+=1
     )
     set /A remaining = %fileCount%-!currentFile!
-    @REM echo !currentFile!/%fileCount%, !remaining! remaining.   !operation:"=! %%~nxf
     CALL :PrintProgress !fileCount! !currentFile! !operation! %%~nxf
 
     IF "%sleepDurationPerMinute%" GTR "!time:~6,2!" CALL :Sleep %sleepDurationPerMinute% "Resting for %sleepDurationPerMinute% seconds..." "Resuming file conversion"
@@ -214,11 +255,14 @@ IF %~1 EQU 1 (
     EXIT
 )
 
+@REM Desc; Calls ManageThread.bat with the correct parameters.
+@REM       The call is done through another .bat file in order to hide console messages from ww2ogg & revorb
 :ExecuteConversion
 @REM Params; 1: ww2ogg.exe path, 2: revorb.exe path, 3: .wem souce path, 4: .ogg target path
 START /LOW /MIN /WAIT "%~n3" ManageThread.bat %~f1 %~f2 %~f3 %~f4
 EXIT /B 0
 
+@REM Desc; Prints conversion progress message
 :PrintProgress
 @REM Params; 1: File count, 2: Current file, 3: Operation 4: File name
 set /A remainingNumber = %~1-%~2
@@ -230,16 +274,9 @@ CALL :NormalizeLength 10 "%~3" currentOperation
 echo %currentString%/%~1, %remainingString% remaining, !currentPercentage!%% complete. %currentOperation% %~4
 EXIT /B 0
 
-:NormalizeLength
-@REM Params; 1: Length, 2: Value, 3: Return value
-set /A length=%~1 
-set extraLongString="                                                         %~2"
-set quotelessString=%extraLongString:"=%
-CALL set normalizedString=%%quotelessString:~-%length%%%
-set %~3=%normalizedString%
-EXIT /B 0
-
+@REM Desc; Returns 'dir' file sorting parameter
 :GetThreadSoring
+@REM Params; 1: Thread number, 2: Output variable
 set /A sortMode = %~1 %% 6
 IF %sortMode% EQU 1 SET %~2=-N
 IF %sortMode% EQU 2 SET %~2=-S
@@ -249,7 +286,9 @@ IF %sortMode% EQU 5 SET %~2=S
 IF %sortMode% EQU 0 SET %~2=D
 EXIT /B 0
 
+@REM Desc; Deletes .ogg.tmp files which might get left behind during conversion
 :CleanTemps
+@REM Params; none
 set /A filesToDelete = 0
 FOR %%x IN ("converted\*TMP") DO set /A filesToDelete+=1
 IF !filesToDelete! GTR 0 DEL "converted\*.TMP"
@@ -258,7 +297,11 @@ EXIT /B 0
 
 
 
+
+
+@REM Desc; Manages extracting .wem files with QuickBMS
 :Extract
+@REM Params; 1: QuickBMS executable path, 2: QuickBMS sript path, 3: .pak file path, 4: Output folder path
 CALL :MakeFolder extracted
 echo Launching QuickBMS...
 echo %pakFileEncryptionKey% > %tempKeyFileName%
@@ -271,7 +314,11 @@ EXIT /B 0
 
 
 
+
+
+@REM Desc; Directs process flow to remove sound files from the .pak
 :RunPackaging
+@REM Params; none
 echo Are the voice lines you want to remove in the "delete" folder^?
 echo If so, good. Lets begin.
 echo.
@@ -307,7 +354,9 @@ CALL :RemoveFolder %tempDummyFolderName%
 CALL :PrintEndTutorial !sourceFromGame! !sourceFile!
 EXIT /B 0
 
+@REM Desc; Tells the user what to do after the .pak has been modified
 :PrintEndTutorial
+@REM Params; 1: Is .pak from game folder, 2: Used .pak file path 
 IF %~1 EQU 1 (
     echo Your game has been automatically patched.
     echo Launch the game and see if the voice lines you chose have been removed. 
@@ -320,7 +369,9 @@ IF %~1 EQU 1 (
 )
 EXIT /B 0
 
+@REM Desc; Selects .pak file most likely to be unmodified from available directories
 :GetPrimarySourceFile
+@REM Params; 1: File path to .pak file outside of project directory, 2: Output variable
 IF EXIST %~dpn1.pak_ORIGINAL (
     set %~2=%~dpn1.pak_ORIGINAL
 ) ELSE IF EXIST %~dpnx1 (
@@ -330,7 +381,9 @@ IF EXIST %~dpn1.pak_ORIGINAL (
 )
 EXIT /B 0
 
+@REM Desc; Creates backups of the original .pak file to .pak's & project's directories
 :CreateBackups
+@REM Params; 1: Used .pak file path, 2: Does path point to game directory
 echo Creating backups...
 echo NOTE: This will override all "pakchunk3-WindowsNoEditor.pak" files.
                                  COPY /D /Y %~dpnx1 /B %~dpn1.pak          /B > NUL
@@ -342,7 +395,12 @@ echo.
 EXIT /B 0
 
 
+
+
+
+@REM Desc; Manages packaging removed .wem files into the .pak file using QuickBMS
 :Package
+@REM Params; 1: QuickBMS executable path, 2: QuickBMS script path, 3: Used .pak file path, 4: Temporary dummy file folder name
 echo Launching QuickBMS...
 echo %pakFileEncryptionKey% > %tempKeyFileName%
 %~f1 -o -w -r %~f2 %~f3 %~f4 <%tempKeyFileName%
@@ -351,5 +409,9 @@ echo.
 echo QuickBMS has completed the packaging.
 echo.
 EXIT /B 0
+
+
+
+
 
 EndLocal
