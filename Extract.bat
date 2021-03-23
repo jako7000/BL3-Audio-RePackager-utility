@@ -11,26 +11,39 @@ set FileSelectDialog=powershell -noprofile -command "&{[System.Reflection.Assemb
 
 
 
+@REM Overall ToDos:
+@REM    Re-imagine the workspace
+@REM    Re-write the whole thing from the ground up to support different .paks, in paraller
+@REM        For example extracted\pakchunk3-WindowsNoEditor\*.wem
+@REM        Save files contain .pak name
+@REM        Support loading & saving .pak files
+@REM        Just make this a .exe program already...
+@REM            .exe would probably enable playing and selecting induvidual .ogg files... :thinking_face:
+
 
 
 @REM Desc; Processes parameters, sets global variables & selects task 
 :Main
-@REM Params; 1: mode "package" | "convert"
-@REM Mode: "package"; 2: Thread number, 3: ww2ogg.exe path, 4: revorb.exe path
+@REM Params; 1: mode "Package" | "Convert" | "Serialize" | "DeSerialize"
+@REM Mode: "Package"; 2: Thread number, 3: ww2ogg.exe path, 4: revorb.exe path
 @REM if paramX == "-sleep", then paramX+1 == sleep duration 
 CALL :SetUI %1 %2 %3
 CALL :SetSleepDuration %1 %2 %3 %4 %5 %6 %7
 
-IF "%1" == "package" (
+IF /I "%1" == "Package" (
     CALL :RunPackaging
     EXIT /B 0
 )
-IF "%1" == "convert" (
+IF /I "%1" == "Convert" (
     CALL :RunWemConverter %2 %3 %4
     EXIT /B 0
 )
-IF "%1" == "serialize" (
+IF /I "%1" == "Serialize" (
     CALL :Serialize
+    EXIT /B 0
+)
+IF /I "%1" == "DeSerialize" (
+    CALL :DeSerialize
     EXIT /B 0
 )
 CALL :ExtractAndConvert
@@ -171,19 +184,49 @@ IF "!intString!" == "" (
 EXIT /B 0
 
 @REM Desc; Asks the user to type a file path
-:AskFilePath
-@REM Params; 1: File name, 2: Output variable
+:InputFilePath
+@REM Params; 1: File name, 2: Output variable, 3: Allow any file
 set /P intPath= "Please give path to %~nx1 file: "
-set %~2="%intPath%\%~1"
+IF "%~3" EQU "1" (
+    set %~2=%intPath%
+) ELSE (
+    set %~2="%intPath%\%~1"
+)
 EXIT /B 0
 
 @REM Desc; Asks the user to select a file with the windows file exporer
 :DialogFilePath
-@REM Params; 1: File name, 2: Output variable
+@REM Params; 1: File name, 2: Output variable, 3: Allow any file
 echo Please give path to %~nx1 file:
 TIMEOUT 1 > NUL
-FOR /F "delims=" %%i IN ('%FileSelectDialog%') DO set "intPath=%%~dpi"
-set %~2="%intPath%%~1"
+FOR /F "delims=" %%i IN ('%FileSelectDialog%') DO (
+    IF "%~3" EQU "1" (
+        set intPath=%%i
+    ) ELSE (
+        set "intPath=%%~dpi"
+    )
+)
+IF "!intPath!" == "" (
+    CALL :Sleep 5 "File selection cancelled. Opening select dialog again in 5 seconds." "Opening file select dialog..."
+    CALL :DialogFilePath %~nx1 fileRetry %~3
+    set intPath=!fileRetry!
+)
+IF "%~3" EQU "1" (
+    set %~2=!intPath!
+) ELSE (
+    set %~2=%intPath%%~1
+)
+EXIT /B 0
+
+@REM Desc; Asks user for file
+:AskFilePath
+@REM Params; 1: File name, 2: Output variable, 3: Allow any file
+IF %UI% EQU 1 (
+    CALL :DialogFilePath %~nx1 filePath %~3
+) ELSE (
+    CALL :InputFilePath %~nx1 filePath %~3
+)
+set %~2=!filePath!
 EXIT /B 0
 
 @REM Desc; Searches project directory for the file, if not found, asks the user
@@ -199,11 +242,7 @@ IF EXIST %~1 (
     echo    %~dp1
     echo.
 
-    IF %UI% EQU 1 (
-        CALL :DialogFilePath %~nx1 filePath
-    ) ELSE (
-        CALL :AskFilePath %~nx1 filePath
-    )
+    CALL :AskFilePath %~nx1 filePath
     CALL :GetFile !filePath! pathRetry
     set %~2=!pathRetry!
 )
@@ -362,35 +401,20 @@ TIMEOUT 3 > NUL
 CALL :GetFile "quickbms_4gb_files.exe" qbmsFilePath 
 CALL :GetFile "unreal_tournament_4.bms" scriptFilePath
 
-set sourceFile=""
-set /A targetPresent = 0
-set /A originalPresent = 0
-IF EXIST "pakchunk3-WindowsNoEditor.pak" (
-    set /A targetPresent = 1
-    set sourceFile="pakchunk3-WindowsNoEditor.pak"
-)
-IF EXIST "pakchunk3-WindowsNoEditor.pak_ORIGINAL" (
-    set /A originalPresent = 1
-    set sourceFile="pakchunk3-WindowsNoEditor.pak_ORIGINAL"
-)
-IF !targetPresent! EQU 0 IF !originalPresent! EQU 0 (
-    CALL :GetFile "pakchunk3-WindowsNoEditor.pak" externalPath
-    CALL :GetPrimarySourceFile !externalPath! primarySourcePath
-    set sourceFile=!primarySourcePath!
-)
-echo.!sourceFile! | findstr /C:"OakGame\Content\Paks">NUL && (set /A sourceFromGame=1) || (set /A sourceFromGame=0) 
+CALL :GetPrimarySourceFile sourceFile sourceFromGame
 
 CALL :CreateBackups !sourceFile! !sourceFromGame!
+CALL :RemoveFolder %tempDummyFolderName%
 CALL :MakeFolder %tempDummyFolderName%
 FOR %%f IN ("delete\*OGG") DO COPY NUL "%tempDummyFolderName%\%%~nf.wem" > nul
 CALL :Package %qbmsFilePath% %scriptFilePath% !sourceFile! %tempDummyFolderName%
 CALL :RemoveFolder %tempDummyFolderName%
 
-CALL :PrintEndTutorial !sourceFromGame! !sourceFile!
+CALL :PrintPackagingEndTutorial !sourceFromGame! !sourceFile!
 EXIT /B 0
 
 @REM Desc; Tells the user what to do after the .pak has been modified
-:PrintEndTutorial
+:PrintPackagingEndTutorial
 @REM Params; 1: Is .pak from game folder, 2: Used .pak file path 
 IF %~1 EQU 1 (
     echo Your game has been automatically patched.
@@ -404,8 +428,39 @@ IF %~1 EQU 1 (
 )
 EXIT /B 0
 
-@REM Desc; Selects .pak file most likely to be unmodified from available directories
+@REM Desc; Searches for the .pak file most likely not already modified,
+@REM       and whether or not it's in the game's directory
 :GetPrimarySourceFile
+@REM Params; 1: Source file output, 2: Is from game directory output
+
+@REM ToDo: Ask user if they'd like a clean start or modify existing mods.
+@REM       If clean start, use .pak_ORIGINAL, if modify, use existing .pak
+@REM       This probably requires removing autoLoading of .pak files in places
+
+set sourceFile=""
+set /A targetPresent = 0
+set /A originalPresent = 0
+IF EXIST "pakchunk3-WindowsNoEditor.pak" (
+    set /A targetPresent = 1
+    set sourceFile="pakchunk3-WindowsNoEditor.pak"
+)
+IF EXIST "pakchunk3-WindowsNoEditor.pak_ORIGINAL" (
+    set /A originalPresent = 1
+    set sourceFile="pakchunk3-WindowsNoEditor.pak_ORIGINAL"
+)
+IF !targetPresent! EQU 0 IF !originalPresent! EQU 0 (
+    CALL :GetFile "pakchunk3-WindowsNoEditor.pak" externalPath
+    CALL :GetCleanerSourceFile !externalPath! primarySourcePath
+    set sourceFile=!primarySourcePath!
+)
+echo.!sourceFile! | findstr /C:"OakGame\Content\Paks">NUL && (set /A sourceFromGame=1) || (set /A sourceFromGame=0) 
+set %~1=!sourceFile!
+set %~2=!sourceFromGame!
+EXIT /B 0
+
+
+@REM Desc; Selects .pak file most likely to be unmodified from available directories
+:GetCleanerSourceFile
 @REM Params; 1: File path to .pak file outside of project directory, 2: Output variable
 IF EXIST %~dpn1.pak_ORIGINAL (
     set %~2=%~dpn1.pak_ORIGINAL
@@ -456,7 +511,25 @@ echo With this utility you can save the files you've removed from the .pak file 
 echo This way you can easily backup ^& share your selections with other people.
 echo.
 
-@REM ToDo: First check if any files in "delete", if not, error out
+@REM ToDo: Ask if user wants to save delete and/or keep files
+@REM       Only count files of wanted selection
+@REM       If neither, abort
+
+set /A filesPresent = 0
+FOR %%f IN ("delete\*.*") DO set /A filesPresent+=1
+FOR %%f IN ("keep\*.*") DO set /A filesPresent+=1
+IF !filesPresent! EQU 0 (
+    echo No files detected in "delete" or "keep" folders.
+    echo Cannot create selection save files from nothing.
+    echo.
+    CALL :AskBoolean loadInstead "Would you like to load a selection save file instead?"
+    IF !loadInstead! EQU 1 (
+        CALL :DeSerialize
+    ) ELSE (
+        echo Remember to run Extract.bat first to unpack the sound files.
+    )
+    EXIT /B 0
+)
 
 echo Have you moved the .ogg files you want to remove to the "delete" folder,
 CALL :AskBoolean hasRemoved "and the ones you want to keep to the "keep" folder?"
@@ -475,17 +548,16 @@ set outputFile=!outputName!.bl3as.txt
 set /A toDelete = 0
 set /A toKeep = 0
 
-@REM echo. > %outputFile%
-echo [delete] > %outputFile%
+echo [delete]> %outputFile%
 FOR %%d IN ("delete\*.*") DO (
     set /A toDelete+=1
-    echo %%~nd >> %outputFile%
+    echo %%~nd>> %outputFile%
 )
-echo. >> %outputFile%
-echo [keep] >> %outputFile%
+echo.>> %outputFile%
+echo [keep]>> %outputFile%
 for %%k IN ("keep\*.*") DO (
     set /A toKeep+=1
-    echo %%~nk >> %outputFile%
+    echo %%~nk>> %outputFile%
 )
 
 echo.
@@ -493,6 +565,53 @@ echo File configuration saved to %outputFile%.
 echo !toDelete! files to remove, !toKeep! files to keep.
 EXIT /B 0
 
+
+@REM Resc; Patches .pak as instructed in serialized file
+:DeSerialize
+@REM Params; none
+CALL :AskFilePath ".bl3as.txt" serializedFilePath 1
+CALL :CleanFileName %serializedFilePath% selectedFileName
+CALL :AskBoolean doRemove "Would you like to remove sounds specified in "%selectedFileName%"?"
+CALL :AskBoolean doKeep "Would you like to include sounds specified in "%selectedFileName%"?"
+
+IF %doRemove% EQU 0 IF %doKeep% EQU 0 (
+    echo It seems you don't want to do anything. Have a nice day.
+    EXIT /B 0
+)
+
+
+CALL :GetFile "quickbms_4gb_files.exe" qbmsFilePath 
+CALL :GetFile "unreal_tournament_4.bms" scriptFilePath
+CALL :GetPrimarySourceFile sourceFile sourceFromGame
+
+CALL :CreateBackups !sourceFile! !sourceFromGame!
+CALL :RemoveFolder %tempDummyFolderName%
+CALL :MakeFolder %tempDummyFolderName%
+
+set selectMode = ""
+set /A filesNotFound = 0
+FOR /F "tokens=*" %%l IN (%serializedFilePath%) DO (
+    IF /I "%%l" == "[delete]" set selectMode=delete
+    IF /I "%%l" == "[keep]" set selectMode=keep
+    IF NOT "%%l" == "" IF /I NOT "%%l" == "[delete]" IF /I NOT "%%l" == "[keep]" (
+        IF "!selectMode!" == "delete" IF %doRemove% EQU 1 COPY NUL "%tempDummyFolderName%\%%l.wem" > NUL
+        IF "!selectMode!" == "keep" IF %doKeep% EQU 1 (
+            IF EXIST extracted^\%%l.wem (
+                COPY extracted^\%%l.wem "%tempDummyFolderName%\%%l.wem" > NUL
+            ) ELSE (
+                echo %%l.wem not found in folder "extracted". Cannot include it in the patch.
+                set /A filesNotFound+=1
+            )
+        )        
+    )
+)
+
+CALL :Package %qbmsFilePath% %scriptFilePath% !sourceFile! %tempDummyFolderName%
+CALL :RemoveFolder %tempDummyFolderName%
+
+CALL :PrintPackagingEndTutorial !sourceFromGame! !sourceFile!
+
+EXIT /B 0
 
 
 
