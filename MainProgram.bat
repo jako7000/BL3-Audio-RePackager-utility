@@ -11,6 +11,9 @@ set revorbExeName=revorb.exe
 set pakFileName=*.pak
 set extractFolder=extracted
 set convertFolder=converted
+set includeFolder=include
+set excludeFolder=exclude
+set ignoreFolder=ignore
 
 set pakFileEncryptionKey=0x115EE4F8C625C792F37A503308048E79726E512F0BF8D2AD7C4C87BC5947CBA7
 set /A sleepDurationPerMinute = 10
@@ -460,7 +463,34 @@ EXIT /B 0
 @REM Desc;  Adds & removes files from a .pak file
 :Package
 @REM Params;    none
-echo Package placeholder func.
+CALL :AcquireFile %quickBmsExeName% quickBmsPath
+CALL :AcquireFile %bmsScriptName% bmsScriptPath
+CALL :AcquireFile %pakFileName% pakFilePath
+
+CALL :GetFileName %pakFilePath% pakName
+
+CALL :AskBoolean includeFiles "YES" "Would you like to add sound files to %pakName%.pak?"
+IF %includeFiles% == TRUE (
+    set defaultIncludeFolder=%convertFolder%\%pakName%\%includeFolder%
+    CALL :GetFolderPath !defaultIncludeFolder! defaultIncludePath
+    IF NOT EXIST !defaultIncludePath! set defaultIncludePath=""
+    CALL :AskFolder includeFolder !defaultIncludePath! "Select the folder from which you want to include sound files (.ogg OR .wem)." "the .ogg OR .wem files to include in the %pakName%.pak"
+
+    set defaultWemFolder=%extractFolder%\%pakName%
+    CALL :GetFolderPath !defaultWemFolder! defaultWemPath
+    IF NOT EXIST !defaultWemPath! set defaultWemPath=""
+    CALL :AskFolder wemFolder !defaultWemPath! "Select the folder where the .wem files from %pakName%.pak have been extracted to." "all of the .wem files extracted from %pakName%.pak"
+)
+
+CALL :AskBoolean excludeFiles "YES" "Would you like to remove sound files to %pakName%?"
+IF %excludeFiles% == TRUE (
+    set defaultExcludeFolder=%convertFolder%\%pakName%\%excludeFolder%
+    CALL :GetFolderPath !defaultExcludeFolder! defaultExcludePath
+    echo defaultExcludePath: "!defaultExcludePath!"
+    IF NOT EXIST !defaultExcludePath! set defaultExcludePath=""
+    echo defaultExcludePath: "!defaultExcludePath!"
+    CALL :AskFolder excludeFolder !defaultExcludePath! "Select the folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to remove from %pakName%.pak"
+)
 EXIT /B 0
 
 @REM Desc;  Saves files from include/exclude folders into a .BL3AS (txt) file
