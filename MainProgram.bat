@@ -149,7 +149,7 @@ EXIT /B 0
 
 @REM Desc;  Asks the user for a folder path
 :AskFolder
-@REM Params; 1: Output variable, 2: (Optional) Default folder, 3: Question string
+@REM Params; 1: Output variable, 2: (Optional) Default folder, 3: Question string 4: Type path question continuation
 set defaultOk=FALSE
 echo %~3
 IF NOT "%~2" == "" CALL :AskBoolean defaultOk "YES" "Is "%~f2\" ok?"
@@ -159,7 +159,7 @@ IF %defaultOk% == TRUE (
     IF %UI% == TRUE (
         CALL :ShowFolderDialog givenFolderPath
     ) ELSE (
-        CALL :TypeFilePath givenFolderPath "the folder where you want the .wem files extracted to"
+        CALL :TypeFilePath givenFolderPath %4
     )
     CALL :GetFolderPath !givenFolderPath! intFolderPath
     set %1=!intFolderPath!
@@ -417,7 +417,7 @@ EXIT /B 0
 CALL :AcquireFile %quickBmsExeName% quickBmsPath
 CALL :AcquireFile %bmsScriptName% bmsScriptPath
 CALL :AcquireFile %pakFileName% pakFilePath
-CALL :AskFolder extractFolder %extractFolder% "Where would you like to extract .wem files to?"
+CALL :AskFolder extractFolder %extractFolder% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
 
 CALL :GetFileName %pakFilePath% subFolderName
 set extractSubFolder=%extractFolder%\%subFolderName%
@@ -437,8 +437,8 @@ EXIT /B 0
 CALL :AcquireFile %ww2oggExeName% ww2oggPath
 CALL :AcquireFile %packedCodebooksBinName% packedCodebooksPath
 CALL :AcquireFile %revorbExeName% revorbPath
-CALL :AskFolder sourceFolder "" "Select folder with .wem files to convert to .ogg files."
-CALL :AskFolder targetFolder %convertFolder% "Select folder to which to save the .ogg files."
+CALL :AskFolder sourceFolder "" "Select folder with .wem files to convert to .ogg files." "the folder with the .wem files to convert"
+CALL :AskFolder targetFolder %convertFolder% "Select folder to which to save the .ogg files." "the folder where to save the .ogg files"
 echo How many conversions would you like to run in paraller^?
 echo 3 is recommended. 9 will absolutely melt your computer.
 CALL :AskNumber threadCount 1 9 3
@@ -457,22 +457,22 @@ CALL :CleanTemps %convertSubFolder%
 CALL :PrintConvertEndTutorial %sourceFolder% %convertSubFolder%
 EXIT /B 0
 
-@REM Desc;  
+@REM Desc;  Adds & removes files from a .pak file
 :Package
+@REM Params;    none
 echo Package placeholder func.
-@REM Params;    
 EXIT /B 0
 
-@REM Desc;  
+@REM Desc;  Saves files from include/exclude folders into a .BL3AS (txt) file
 :Serialize
+@REM Params;    none
 echo Serialize placeholder func.
-@REM Params;    
 EXIT /B 0
 
-@REM Desc;  
+@REM Desc;  Loads files from .BL3AS (txt) file into include/exclude folders
 :DeSerialize
+@REM Params;    none
 echo DeSerialize placeholder func.
-@REM Params;    
 EXIT /B 0
 
 
