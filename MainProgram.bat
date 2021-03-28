@@ -152,7 +152,7 @@ IF %defaultOk% == TRUE (
     ) ELSE (
         CALL :TypeFilePath givenFolderPath "the folder where you want the .wem files extracted to"
     )
-    CALL :PathToFolder !givenFolderPath! intFolderPath
+    CALL :GetFolderPath !givenFolderPath! intFolderPath
     set %1=!intFolderPath!
 )
 EXIT /B 0
@@ -198,23 +198,11 @@ EXIT /B 0
 :TypeFilePath
 @REM Params;    1: Output variable, 2: File name
 set /P givenFile="Please type path to %~2: "
-CALL :NameToPath %givenFile% intFilePath
+CALL :GetFullPath %givenFile% intFilePath
 set %1=%intFilePath%
 EXIT /B 0
 
 
-
-@REM Desc;  Extends input to full path
-:NameToPath
-@REM Params;    1: Input name, 2: Output variable
-set %2=%~f1
-EXIT /B 0
-
-@REM Desc;  Expands input to folder path
-:PathToFolder
-@REM Params;    1: Input path, 2: Output variable
-set %2=%~dpn1
-EXIT /B 0
 
 @REM Desc;  Check wether or not given path leads to specified file (type)
 :IsSpecifiedFile
@@ -267,6 +255,39 @@ EXIT /B 0
 
 
 
+@REM Desc;  Extends input to full path
+:GetFullPath
+@REM Params;    1: Input name, 2: Output variable
+set %2=%~f1
+EXIT /B 0
+
+@REM Desc;  Expands input to folder path
+:GetFolderPath
+@REM Params;    1: Input path, 2: Output variable
+set %2=%~dpn1
+EXIT /B 0
+
+@REM Desc;  Sleeps for a given amount while displaying an updating message
+:Sleep
+@REM Params;    1: Duration, 2: Start message, 3: End message
+echo %~2
+FOR /F %%a IN ('COPY /Z "%~dpf0" NUL') DO set "CR=%%a"
+FOR /L %%s IN (%~1, -1, 1) DO (
+    <NUL set /P"=Continue in %%s... !CR!"
+    TIMEOUT 1 > NUL
+)
+<NUL set /p"=%~3"
+echo .
+EXIT /B 0
+
+@REM Desc;  Creates a folder if it doesn't already exist
+:MakeFolder
+@REM Params;    1: Folder path
+IF NOT EXIST %~dpn1 MD %~dpn1
+EXIT /B 0
+
+
+
 @REM Desc;  Executes correct function based on input
 :SelectOperationMode
 @REM Params;    1: (Optional) mode "Extract" | "Convert" | "Package" | "Serialize" | "DeSerialize"
@@ -305,6 +326,23 @@ CALL :AcquireFile %quickBmsExeName% quickBmsPath
 CALL :AcquireFile %bmsScriptName% bmsScriptPath
 CALL :AcquireFile %pakFileName% pakFilePath
 CALL :AskFolder extractFolder %extractFolder% "Where would you like to extract .wem files to?"
+
+CALL :Sleep 5 "Extraction will begin in 5 seconds." "Launching QuickBMS..."
+CALL :MakeFolder %extractFolder%
+echo %pakFileEncryptionKey% > %tempKeyFileName%
+%quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractFolder% <%tempKeyFileName%
+DEL %tempKeyFileName%
+
+echo .wem files extracted from
+echo    %pakFilePath%
+echo to
+echo    %extractFolder%
+echo.
+echo.
+echo NOTE:  Do not add, remove, or change the contents of the extract folder.
+echo        You can however move the folder around. Just don't change the contents.
+echo.
+echo.
 EXIT /B 0
 
 @REM Desc;  
