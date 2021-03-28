@@ -257,7 +257,7 @@ EXIT /B 0
 
 @REM Desc;  Extends input to full path
 :GetFullPath
-@REM Params;    1: Input name, 2: Output variable
+@REM Params;    1: Input path, 2: Output variable
 set %2=%~f1
 EXIT /B 0
 
@@ -265,6 +265,12 @@ EXIT /B 0
 :GetFolderPath
 @REM Params;    1: Input path, 2: Output variable
 set %2=%~dpn1
+EXIT /B 0
+
+@REM Desc;  Expands input to file name
+:GetFileName
+@REM Params;    1: Input path, 2: Output variable
+set %2=%~n1
 EXIT /B 0
 
 @REM Desc;  Sleeps for a given amount while displaying an updating message
@@ -327,22 +333,16 @@ CALL :AcquireFile %bmsScriptName% bmsScriptPath
 CALL :AcquireFile %pakFileName% pakFilePath
 CALL :AskFolder extractFolder %extractFolder% "Where would you like to extract .wem files to?"
 
+CALL :GetFileName %pakFilePath% subFolderName
+set extractSubFolder=%extractFolder%\%subFolderName%
+
 CALL :Sleep 5 "Extraction will begin in 5 seconds." "Launching QuickBMS..."
-CALL :MakeFolder %extractFolder%
+CALL :MakeFolder %extractSubFolder%
 echo %pakFileEncryptionKey% > %tempKeyFileName%
-%quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractFolder% <%tempKeyFileName%
+@REM %quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractSubFolder% <%tempKeyFileName%
 DEL %tempKeyFileName%
 
-echo .wem files extracted from
-echo    %pakFilePath%
-echo to
-echo    %extractFolder%
-echo.
-echo.
-echo NOTE:  Do not add, remove, or change the contents of the extract folder.
-echo        You can however move the folder around. Just don't change the contents.
-echo.
-echo.
+CALL :PrintExtractEndTutorial %pakFilePath% %extractSubFolder%
 EXIT /B 0
 
 @REM Desc;  
@@ -369,6 +369,21 @@ echo DeSerialize placeholder func.
 @REM Params;    
 EXIT /B 0
 
+@REM Desc;  Prints instructions for the user after extraction has been completed
+:PrintExtractEndTutorial
+@REM Params;    1: .pak file path, 2: Extract folder path
+echo .wem files extracted from
+echo    %pakFilePath%
+echo to
+echo    %extractSubFolder%\
+echo.
+echo.
+echo NOTE:  Do NOT add, remove, or change the contents of
+echo            %extractSubFolder%\
+echo        You can however move the folder around. Just don't change the contents.
+echo.
+echo.
+EXIT /B 0
 
 
 
