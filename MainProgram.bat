@@ -5,8 +5,12 @@ set tempDummyFolderName=temp
 set tempKeyFileName=tempKey.txt
 set quickBmsExeName=quickbms_4gb_files.exe
 set bmsScriptName=*.bms
+set ww2oggExeName=ww2ogg.exe
+set packedCodebooksBinName=packed_codebooks_aoTuV_603.bin
+set revorbExeName=revorb.exe
 set pakFileName=*.pak
 set extractFolder=extracted
+set convertFolder=converted
 
 set pakFileEncryptionKey=0x115EE4F8C625C792F37A503308048E79726E512F0BF8D2AD7C4C87BC5947CBA7
 set /A sleepDurationPerMinute = 10
@@ -22,12 +26,16 @@ set FolderSelectDialog="(new-object -COM 'Shell.Application').BrowseForFolder(0,
 
 @REM Desc; Processes parameters, sets global variables & selects task
 :Main
-@REM Params; 1: mode "Extract" | "Convert" | "Package" | "Serialize" | "DeSerialize", 2->: Optional parameters
+@REM Params; 1: mode "Extract" | "Convert" | "Package" | "Serialize" | "DeSerialize" | "Thread", 2->: Optional parameters
 CALL :SetUI %1 %2 %3 %4 %5 %6 %7 %8 %9
 CALL :SetSleepDuration %1 %2 %3 %4 %5 %6 %7 %8 %9
 CALL :SetEncryptionKey %1 %2 %3 %4 %5 %6 %7 %8 %9
 
-CALL :SelectOperationMode %1
+IF /I "%~1" == "Thread" (
+    CALL :ManageThread %2 %3 %4 %5 %6 %7
+) ELSE (
+    CALL :SelectOperationMode %1
+)
 
 EXIT /B 0
 
@@ -141,9 +149,10 @@ EXIT /B 0
 
 @REM Desc;  Asks the user for a folder path
 :AskFolder
-@REM Params; 1: Output variable, 2: Default folder, 3: Question string
+@REM Params; 1: Output variable, 2: (Optional) Default folder, 3: Question string
+set defaultOk=FALSE
 echo %~3
-CALL :AskBoolean defaultOk "YES" "Is "%~f2\" ok?"
+IF NOT "%~2" == "" CALL :AskBoolean defaultOk "YES" "Is "%~f2\" ok?"
 IF %defaultOk% == TRUE (
     set %1=%~f2
 ) ELSE (
@@ -273,6 +282,16 @@ EXIT /B 0
 set %2=%~n1
 EXIT /B 0
 
+@REM Desc;  Adds spacing to the start of a value so it has a given length
+:NormalizeLength
+@REM Params;    1: Length, 2: Value, 3: Output variable
+set /A length=%~1
+set extraLongString="                                                         %~2"
+set quotelessString=%extraLongString:"=%
+CALL set normalizedString=%%quotelessString:~-%length%%%
+set %3=%normalizedString%
+EXIT /B 0
+
 @REM Desc;  Sleeps for a given amount while displaying an updating message
 :Sleep
 @REM Params;    1: Duration, 2: Start message, 3: End message
@@ -290,6 +309,17 @@ EXIT /B 0
 :MakeFolder
 @REM Params;    1: Folder path
 IF NOT EXIST %~dpn1 MD %~dpn1
+EXIT /B 0
+
+@REM Desc;  Deletes .tmp files
+:CleanTemps
+@REM Params;    1: Folder path to clean
+set /A filesToDelete=0
+FOR %%x IN ("%~dpn1\*.tmp") DO set /A filesToDelete+=1
+IF !filesToDelete! GTR 0 DEL "%~dpn1\*.tmp"
+echo Cleaned !filesToDelete! .tmp files from
+echo    %~dpn1\
+echo.
 EXIT /B 0
 
 
@@ -321,8 +351,64 @@ IF !modeNumber! EQU 4 CALL :Serialize
 IF !modeNumber! EQU 5 CALL :DeSerialize
 EXIT /B 0
 
+@REM Desc;  Runs operations related to a single conversion thread
+:ManageThread
+@REM Params;    1: Thread number, 2: ww2ogg.exe path, 3: packed_codebooks_aoTuV_603.bin path
+@REM            4: revorb.exe path, 5: .wem source folder path, 6: .ogg target folder path
+echo Starting .wem to .ogg conversion...
 
+set /A fileCount=0
+set /A currentFile=0
+set /A filesConverted=0
+FOR %%x IN ("%~f5\*.wem") DO set /A fileCount+=1
+FOR %%x IN ("%~f6\*.ogg") DO set /A filesConverted+=1
 
+CALL :GetThreadSoring %~1 sortOrder
+FOR /F %%f IN ('dir /B /O:%sortOrder% %~f5\*.wem') DO (
+    set /A currentFile+=1
+    set operation=Skipping
+    IF /I NOT EXIST "%~f6\%%~nf.ogg" (
+        set operation=Converting
+        START /LOW /MIN /WAIT "%%~nf" SilentConversion.bat %~f2 %~f3 %~f4 "%~f5\%%~nxf" "%~f6\%%~nf.ogg"
+        set /A filesConverted+=1
+    )
+    set /A remaining=%fileCount%-!currentFile!
+    CALL :PrintProgress !fileCount! !currentFile! !operation! %%~nxf
+
+    IF %sleepDurationPerMinute% GTR !time:~6,2! CALL :Sleep %sleepDurationPerMinute% "Resting for %sleepDurationPerMinute% seconds..." "Resuming file conversion."
+)
+echo All files conerted.
+echo.
+IF %~1 EQU 1 (
+   EXIT /B 0
+) ELSE (
+    EXIT
+)
+EXIT /B 0
+
+@REM Desc;  Returns a 'dir' command file sotring parameter
+:GetThreadSoring
+@REM Params;    1: Thread number, 2: Output variable
+set /A sortMode = %~1 %% 6
+IF %sortMode% EQU 1 SET %2=-N
+IF %sortMode% EQU 2 SET %2=-S
+IF %sortMode% EQU 3 SET %2=-D
+IF %sortMode% EQU 4 SET %2=N
+IF %sortMode% EQU 5 SET %2=S
+IF %sortMode% EQU 0 SET %2=D
+EXIT /B 0
+
+@REM Desc;  Prints conversion progress message
+:PrintProgress
+@REM Params;    1: File count, 2: Current file, 3: Operaiton, 4: File name
+set /A remainingNumber=%~1-%~2
+set /A remainingPercentage=(%~2*100)/%~1
+CALL :NormalizeLength 5 "%remainingNumber%" remainingString
+CALL :NormalizeLength 5 "%~2" currentString
+CALL :NormalizeLength 3 "%remainingPercentage%" currentPercentage
+CALL :NormalizeLength 10 "%~3" currentOperation
+echo %currentString%/%~1, %remainingString% remaining, !currentPercentage!%% complete. %currentOperation% %~4
+EXIT /B 0
 
 
 @REM Desc;  Extracts .wem files from a .pak file
@@ -339,16 +425,36 @@ set extractSubFolder=%extractFolder%\%subFolderName%
 CALL :Sleep 5 "Extraction will begin in 5 seconds." "Launching QuickBMS..."
 CALL :MakeFolder %extractSubFolder%
 echo %pakFileEncryptionKey% > %tempKeyFileName%
-@REM %quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractSubFolder% <%tempKeyFileName%
+%quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractSubFolder% <%tempKeyFileName%
 DEL %tempKeyFileName%
 
 CALL :PrintExtractEndTutorial %pakFilePath% %extractSubFolder%
 EXIT /B 0
 
-@REM Desc;  
+@REM Desc;  Converts .wem files into .ogg files
 :Convert
-echo Convert placeholder func.
-@REM Params;    
+@REM Params;    none
+CALL :AcquireFile %ww2oggExeName% ww2oggPath
+CALL :AcquireFile %packedCodebooksBinName% packedCodebooksPath
+CALL :AcquireFile %revorbExeName% revorbPath
+CALL :AskFolder sourceFolder "" "Select folder with .wem files to convert to .ogg files."
+CALL :AskFolder targetFolder %convertFolder% "Select folder to which to save the .ogg files."
+echo How many conversions would you like to run in paraller^?
+echo 3 is recommended. 9 will absolutely melt your computer.
+CALL :AskNumber threadCount 1 9 3
+
+CALL :GetFileName %sourceFolder% subFolderName
+set convertSubFolder=%targetFolder%\%subFolderName%
+
+echo Launchin %threadCount% conversion threads...
+CALL :MakeFolder %convertSubFolder%
+FOR /L %%t IN (2, 1, %threadCount%) DO START /LOW "ConversionThread-%%t" MainProgram.bat "Thread" %%t %ww2oggPath% %packedCodebooksPath% %revorbPath% %sourceFolder% %convertSubFolder%
+CALL :ManageThread 1 %ww2oggPath% %packedCodebooksPath% %revorbPath% %sourceFolder% %convertSubFolder%
+
+CALL :Sleep 5 "File cleaning will begin in a moment." "Starting cleaning."
+CALL :CleanTemps %convertSubFolder%
+
+CALL :PrintConvertEndTutorial %sourceFolder% %convertSubFolder%
 EXIT /B 0
 
 @REM Desc;  
@@ -369,22 +475,42 @@ echo DeSerialize placeholder func.
 @REM Params;    
 EXIT /B 0
 
+
+
+
+
 @REM Desc;  Prints instructions for the user after extraction has been completed
 :PrintExtractEndTutorial
 @REM Params;    1: .pak file path, 2: Extract folder path
 echo .wem files extracted from
-echo    %pakFilePath%
+echo    %~f1
 echo to
-echo    %extractSubFolder%\
+echo    %~f2\
 echo.
 echo.
 echo NOTE:  Do NOT add, remove, or change the contents of
-echo            %extractSubFolder%\
+echo            %~f2\
 echo        You can however move the folder around. Just don't change the contents.
 echo.
 echo.
+@REM ToDo;  Ask user if they want to convert/deSerialize files, if yes, call :Convert/:DeSerialize
+@REM        Make this a separate function
+@REM        Ask number, enter for nothing (close window)
 EXIT /B 0
 
+@REM Desc;  Prints instructions for the user after conversion has been completed
+:PrintConvertEndTutorial
+@REM Params;    1: .wem source folder, 2: .ogg target folder
+echo Converted .wem files from
+echo    %~f1\
+echo to .ogg files in
+echo    %~f2\
+echo.
+echo.
+echo Now you can sort the .ogg files to different folders depending if you want to include, exclude or ignore them.
+@REM ToDo;  Offer to create include/exclude/delete folders to the CONVERSION folder
+@REM        Make this a separate function
+EXIT /B 0
 
 
 
