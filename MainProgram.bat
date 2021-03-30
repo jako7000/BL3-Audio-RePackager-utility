@@ -1,7 +1,15 @@
 @echo off
 SetLocal EnableDelayedExpansion
 
-set tempKeyFileName=tempKey.txt
+IF "%TEMP%" == "" (
+    set rootDir=%~dp0
+    set %TEMP% = %rootDir:~0,-1%
+    echo TEMP environment variable not found.
+    echo ATTEMPTING to use "%rootDir:~0,-1%" as TEMP instead.
+    echo (This probably doesn't work...)
+)
+
+set tempKeyFileName=%TEMP%\BL3AU_EnctryptionKey.txt
 set quickBmsExeName=quickbms_4gb_files.exe
 set bmsScriptName=*.bms
 set ww2oggExeName=ww2ogg.exe
@@ -14,7 +22,7 @@ set convertFolder=converted
 set includeFolder=include
 set excludeFolder=exclude
 set ignoreFolder=ignore
-set tempFolder=temp
+set tempFolder=%TEMP%\BL3AU\
 
 set pakFileEncryptionKey=0x115EE4F8C625C792F37A503308048E79726E512F0BF8D2AD7C4C87BC5947CBA7
 set /A sleepDurationPerMinute = 10
@@ -598,7 +606,7 @@ EXIT /B 0
 
 
 
-@REM Desc;  Saves files from include/exclude folders into a .BL3AS (txt) file
+@REM Desc;  Saves files from include/exclude folders into a .BL3AU (txt) file
 :Serialize
 @REM Params;    none
 echo Serialize placeholder func.
@@ -606,7 +614,7 @@ EXIT /B 0
 
 
 
-@REM Desc;  Loads files from .BL3AS (txt) file into include/exclude folders
+@REM Desc;  Loads files from .BL3AU (txt) file into include/exclude folders
 :DeSerialize
 @REM Params;    none
 echo DeSerialize placeholder func.
