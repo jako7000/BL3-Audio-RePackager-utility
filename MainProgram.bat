@@ -113,30 +113,30 @@ IF "%~3" == "" (
 )
 
        IF /I "!userBoolean%~1!" == "Y" (
-    set intBoolean=TRUE
+    set intBoolean%~1=TRUE
 ) ELSE IF /I "!userBoolean%~1!" == "YES" (
-    set intBoolean=TRUE
+    set intBoolean%~1=TRUE
 ) ELSE IF /I "!userBoolean%~1!" == "1" (
-    set intBoolean=TRUE
+    set intBoolean%~1=TRUE
 ) ELSE IF /I "!userBoolean%~1!" == "N" (
-    set intBoolean=FALSE
+    set intBoolean%~1=FALSE
 ) ELSE IF /I "!userBoolean%~1!" == "NO" (
-    set intBoolean=FALSE
+    set intBoolean%~1=FALSE
 ) ELSE IF /I "!userBoolean%~1!" == "0" (
-    set intBoolean=FALSE
+    set intBoolean%~1=FALSE
 ) ELSE IF /I "!userBoolean%~1!" == "" IF NOT "%~3" == "" (
-    IF "%~3" == "YES" set intBoolean=TRUE
-    IF "%~3" == "NO"  set intBoolean=FALSE
+    IF "%~3" == "YES" set intBoolean%~1=TRUE
+    IF "%~3" == "NO"  set intBoolean%~1=FALSE
 )
 
-IF "!intBoolean!" == "" (
+IF "!intBoolean%~1!" == "" (
     echo "!userBoolean%~1!" is not a valid input.
     echo.
     CALL :AskBoolean "%~1-" booleanRetry %3 %4
     set %2=!booleanRetry!
     EXIT /B 0
 )
-set %2=!intBoolean!
+set %2=!intBoolean%~1!
 echo.
 EXIT /B 0
 
