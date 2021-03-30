@@ -104,114 +104,158 @@ EXIT /B 0
 
 @REM Desc;  Asks the user a boolean question
 :AskBoolean
-@REM Params;    1: Output variable, 2: Default (YES | NO), 3: (Optional) Question string
-IF NOT "%~3" == "" echo %~3
-set /P intBoolean="Press ENTER for %~2 (Y/N): "
-IF /I "%intBoolean%" == "" (
-    IF /I "%~2" == "YES" set %1=TRUE
-    IF /I "%~2" == "NO" set %1=FALSE
-) ELSE IF /I "%intBoolean%" == "Y" (
-    set %1=TRUE
-) ELSE IF /I "%intBoolean%" == "YES" (
-    set %1=TRUE
-) ELSE IF /I "%intBoolean%" == "1" (
-    set %1=TRUE
-) ELSE IF /I "%intBoolean%" == "N" (
-    set %1=FALSE
-) ELSE IF /I "%intBoolean%" == "NO" (
-    set %1=FALSE
-) ELSE IF /I "%intBoolean%" == "0" (
-    set %1=FALSE
+@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default value (YES|NO), 4: (Optional) Question string, 
+IF "%~3" == "" (
+    set /P userBoolean%~1="%~4 (Y/N): "
 ) ELSE (
-    echo "%intBoolean%" is not a valid input.
-    echo.
-    CALL AskBoolean booleanRetry %2
-    set %1=%2
+    IF NOT "%~4" == "" echo %~4
+    set /P userBoolean%~1="Press ENTER for %~3 (Y/N): "
 )
+
+       IF /I "!userBoolean%~1!" == "Y" (
+    set intBoolean=TRUE
+) ELSE IF /I "!userBoolean%~1!" == "YES" (
+    set intBoolean=TRUE
+) ELSE IF /I "!userBoolean%~1!" == "1" (
+    set intBoolean=TRUE
+) ELSE IF /I "!userBoolean%~1!" == "N" (
+    set intBoolean=FALSE
+) ELSE IF /I "!userBoolean%~1!" == "NO" (
+    set intBoolean=FALSE
+) ELSE IF /I "!userBoolean%~1!" == "0" (
+    set intBoolean=FALSE
+) ELSE IF /I "!userBoolean%~1!" == "" IF NOT "%~3" == "" (
+    IF "%~3" == "YES" set intBoolean=TRUE
+    IF "%~3" == "NO"  set intBoolean=FALSE
+)
+
+IF "!intBoolean!" == "" (
+    echo "!userBoolean%~1!" is not a valid input.
+    echo.
+    CALL :AskBoolean "%~1-" booleanRetry %3 %4
+    set %2=!booleanRetry!
+    EXIT /B 0
+)
+set %2=!intBoolean!
 echo.
 EXIT /B 0
 
 @REM Desc;  Asks the user a number question
 :AskNumber
-@REM Params;    1: Output variable, 2: Min, 3: Max, 4: Default value, 5: (Optional) Question string,
-IF NOT "%~5" == "" echo %~5
-set /P intNumber="Press ENTER for %4 (%2-%3): "
-IF "!intNumber!" == "" (
-    set /A %1=%4
-) ELSE IF /I !intNumber! LSS %2 (
-    echo    "!intNumber!" is too small. Value set to %2.
-    set /A %1=%2
-) ELSE IF /I !intNumber! GTR %3 (
-    echo "!intNumber!" is too large. Value set to %3.
-    set /A %1=%3
+@REM Params;    1: Question ID, 2: Output variable, 3: Min, 4: Max, 5: (Optional) Default value, 6: (Optional) Question string,
+IF "%~5" == "" (
+    set /P userInt%~1="%~6 (%3-%4): "
 ) ELSE (
-    set /A %1=!intNumber!
+    IF NOT "%~6" == "" echo %~6
+    set /P userInt%~1="Press ENTER for %5 (%3-%4): "
 )
+
+set /A castUserInt="!userInt%~1!"
+IF "!userInt%~1!" == "" (
+    IF NOT "%~5" == "" (
+        set /A intInteger=%5
+    ) ELSE (
+        echo "!userInt%~1!" is not a valid input.
+        echo.
+        CALL :AskNumber "%~1-" integerRetry %3 %4 %5 %6
+        set /A %2=!integerRetry!
+        EXIT /B 0
+    )
+) ELSE (
+    IF "%castUserInt%" EQU "!userInt%~1!" (
+        IF "%castUserInt%" LSS "%3" (
+            echo %castUserInt% is too small. Value set to %3
+            set /A intInteger=%3
+        ) ELSE IF "%castUserInt%" GTR "%4" (
+            echo %castUserInt% is too large. Value set to %4.
+            set /A intInteger=%4
+        ) ELSE (
+            set /A intInteger=%castUserInt%
+        )
+    ) ELSE (
+        echo "!userInt%~1!" is not a valid input.
+        echo.
+        CALL :AskNumber "%~1-" integerRetry %3 %4 %5 %6
+        set /A %2=!integerRetry!
+        EXIT /B 0
+    )
+)
+
+set /A %2=!intInteger!
 echo.
 EXIT /B 0
 
 @REM Desc;  Asks the user for a folder path
 :AskFolder
-@REM Params; 1: Output variable, 2: (Optional) Default folder, 3: Question string 4: Type path question continuation
+@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default folder, 4: Question string 5: Type path question continuation
 set defaultOk=FALSE
-echo %~3
-IF NOT "%~2" == "" CALL :AskBoolean defaultOk "YES" "Is "%~f2\" ok?"
+echo %~4
+IF NOT "%~3" == "" CALL :AskBoolean "AskFo-%1" defaultOk "YES" "Is "%~f3\" ok?"
 IF %defaultOk% == TRUE (
-    set %1=%~f2
+    set intFolderPath=%~f3
 ) ELSE (
     IF %UI% == TRUE (
-        CALL :ShowFolderDialog givenFolderPath
+        CALL :ShowFolderDialog "AskFo-%1" givenFolderPath
     ) ELSE (
-        CALL :TypeFilePath givenFolderPath %4
+        CALL :TypeFilePath "AskFo-%1" givenFolderPath %5
     )
-    CALL :GetFolderPath !givenFolderPath! intFolderPath
-    set %1=!intFolderPath!
+    IF "!givenFolderPath!" == "" (
+        echo "!givenFolderPath!" is not a valid input.
+        echo.
+        CALL :AskFolder "AskFo-%1" givenFolderPath %3 %4 %5
+    )
+    CALL :GetFolderPath !givenFolderPath! expandedFolderPath
+    set intFolderPath=!expandedFolderPath!
 )
+set %2=!intFolderPath!
 EXIT /B 0
 
 @REM Desc;  Asks the user for a file path
 :AskFilePath
-@REM Params;    1: Output variable, 2: File name
+@REM Params;    1: Question ID, 2: Output variable, 3: File name
 IF %UI% == TRUE (
-    CALL :ShowFileDialog intFilePath %2
+    CALL :ShowFileDialog "AskFi-%1" givenFilePath %3
 ) ELSE (
-    CALL :TypeFilePath intFilePath %2
+    CALL :TypeFilePath "AskFi-%1" givenFilePath %3
 )
-CALL :IsSpecifiedFile !intFilePath! %2 isValid
-IF %isValid% == TRUE (
-    set %1=!intFilePath!
+
+CALL :IsSpecifiedFile "!givenFilePath!" %3 isValid
+IF !isValid! == TRUE (
+    set %2=!givenFilePath!
 ) ELSE (
-    echo "%~2" not found at
-    echo    !intFilePath!
+    echo "%~3" not found at
+    IF "!givenFilePath!" == "" (echo    "!givenFilePath!") ELSE (echo    !givenFilePath!)
     echo.
-    CALL :AskFilePath pathRetry %2
-    set %1=!pathRetry!
+    CALL :AskFilePath "%~1-" pathRetry %3
+    set %2=!pathRetry!
+    EXIT /B 0
 )
+echo.
 EXIT /B 0
 
 @REM Desc;  Shows the user a windows folder select window for file selection 
 :ShowFolderDialog
-@REM Params;    1: Output variable
-FOR /F "usebackq delims=" %%I IN (`powershell %FolderSelectDialog%`) DO set "intFilePath=%%I"
-set %1=!intFilePath!
+@REM Params;    1: Question ID, 2: Output variable
+FOR /F "usebackq delims=" %%I IN (`%FolderSelectDialog%`) DO set intFolderPath%~1=%%I
+set %2=!intFolderPath%~1!
 EXIT /B 0
 
 @REM Desc;  Shows the user a windows file select window for file selection
 :ShowFileDialog
-@REM Params;    1: Output variable, 2: File name
-echo Please select path to "%~2" file.
+@REM Params;    1: Question ID, 2: Output variable, 3: File name
+echo Please select path to "%~3" file.
 TIMEOUT 1 > NUL
-FOR /F "delims=" %%i IN ('%FileSelectDialog%') DO set intFilePath=%%~fi
-set %1=!intFilePath!
+FOR /F "delims=" %%i IN ('%FileSelectDialog%') DO set intFilePath%~1=%%~fi
+set %2=!intFilePath%~1!
 TIMEOUT 1 > NUL
 EXIT /B 0
 
 @REM Desc;  Asks the user to type a file path
 :TypeFilePath
-@REM Params;    1: Output variable, 2: File name
-set /P givenFile="Please type path to %~2: "
-CALL :GetFullPath %givenFile% intFilePath
-set %1=%intFilePath%
+@REM Params;    1: Question ID, 2: Output variable, 3: File name
+set /P givenFile%~1="Please type path to %~3: "
+CALL :GetFullPath !givenFile%~1! intFilePath
+set %2=!intFilePath!
 EXIT /B 0
 
 
@@ -225,7 +269,7 @@ IF /I "%fileName:~1,1%" == "." (
     EXIT /B 0
 ) 
 
-IF NOT EXIST %~f1 (
+IF NOT EXIST "%~f1" (
     set %3=FALSE
 ) ELSE IF "%~nx1" == "%~nx2" (
     set %3=TRUE
@@ -251,15 +295,15 @@ EXIT /B 0
 @REM        if not ok, asks for wanted file.
 @REM        Returns file path.
 :AcquireFile
-@REM Params;    1: File name, 2: Output file path
-CALL :CheckLocalFile %1 localFileFound intFilePath
+@REM Params;    1: Question ID, 2: Output file path, 3: File name
+CALL :CheckLocalFile %3 localFileFound intFilePath
 IF %localFileFound% == TRUE (
-    echo "%~nx1" found from
+    echo "%~nx3" found at
     echo    %intFilePath%
-    CALL :AskBoolean useLocalFile "YES" "Use this file?"
-    IF !useLocalFile! == FALSE CALL :AskFilePath intFilePath %1
+    CALL :AskBoolean "AcqFi-%~1" useLocalFile "YES" "Use this file?"
+    IF !useLocalFile! == FALSE CALL :AskFilePath "AcqFi-%~1" intFilePath %3
 )
-set %2=!intFilePath!
+set %3=!intFilePath!
 echo.
 EXIT /B 0
 
@@ -417,10 +461,10 @@ EXIT /B 0
 @REM Desc;  Extracts .wem files from a .pak file
 :Extract
 @REM Params;    none
-CALL :AcquireFile %quickBmsExeName% quickBmsPath
-CALL :AcquireFile %bmsScriptName% bmsScriptPath
-CALL :AcquireFile %pakFileName% pakFilePath
-CALL :AskFolder extractFolder %extractFolder% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
+CALL :AcquireFile "ExtQBMS" quickBmsPath  %quickBmsExeName%
+CALL :AcquireFile "ExtBMSS" bmsScriptPath %bmsScriptName%
+CALL :AcquireFile "ExtPFP"  pakFilePath   %pakFileName%
+CALL :AskFolder "ExtExFo" extractFolder %extractFolder% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
 
 CALL :GetFileName %pakFilePath% subFolderName
 set extractSubFolder=%extractFolder%\%subFolderName%
@@ -437,14 +481,14 @@ EXIT /B 0
 @REM Desc;  Converts .wem files into .ogg files
 :Convert
 @REM Params;    none
-CALL :AcquireFile %ww2oggExeName% ww2oggPath
-CALL :AcquireFile %packedCodebooksBinName% packedCodebooksPath
-CALL :AcquireFile %revorbExeName% revorbPath
-CALL :AskFolder sourceFolder "" "Select folder with .wem files to convert to .ogg files." "the folder with the .wem files to convert"
-CALL :AskFolder targetFolder %convertFolder% "Select folder to which to save the .ogg files." "the folder where to save the .ogg files"
+CALL :AcquireFile "ConW2O" ww2oggPath          %ww2oggExeName%
+CALL :AcquireFile "ConPCB" packedCodebooksPath %packedCodebooksBinName%
+CALL :AcquireFile "ConRev" revorbPath          %revorbExeName%
+CALL :AskFolder "ConSoFo" sourceFolder "" "Select folder with .wem files to convert to .ogg files." "the folder with the .wem files to convert"
+CALL :AskFolder "ConTaFo" targetFolder %convertFolder% "Select folder to which to save the .ogg files." "the folder where to save the .ogg files"
 echo How many conversions would you like to run in paraller^?
 echo 3 is recommended. 9 will absolutely melt your computer.
-CALL :AskNumber threadCount 1 9 3
+CALL :AskNumber "ConTC" threadCount 1 9 3
 
 CALL :GetFileName %sourceFolder% subFolderName
 set convertSubFolder=%targetFolder%\%subFolderName%
@@ -463,33 +507,33 @@ EXIT /B 0
 @REM Desc;  Adds & removes files from a .pak file
 :Package
 @REM Params;    none
-CALL :AcquireFile %quickBmsExeName% quickBmsPath
-CALL :AcquireFile %bmsScriptName% bmsScriptPath
-CALL :AcquireFile %pakFileName% pakFilePath
+CALL :AcquireFile "PacQGMS" quickBmsPath  %quickBmsExeName%
+CALL :AcquireFile "PacBMSS" bmsScriptPath %bmsScriptName%
+CALL :AcquireFile "PacPFP"  pakFilePath   %pakFileName%
 
 CALL :GetFileName %pakFilePath% pakName
 
-CALL :AskBoolean includeFiles "YES" "Would you like to add sound files to %pakName%.pak?"
+CALL :AskBoolean "PackInFi" includeFiles "YES" "Would you like to add sound files to %pakName%.pak?"
 IF %includeFiles% == TRUE (
     set defaultIncludeFolder=%convertFolder%\%pakName%\%includeFolder%
     CALL :GetFolderPath !defaultIncludeFolder! defaultIncludePath
     IF NOT EXIST !defaultIncludePath! set defaultIncludePath=""
-    CALL :AskFolder includeFolder !defaultIncludePath! "Select the folder from which you want to include sound files (.ogg OR .wem)." "the .ogg OR .wem files to include in the %pakName%.pak"
+    CALL :AskFolder "PacInFo" includeFolder !defaultIncludePath! "Select the folder from which you want to include sound files (.ogg OR .wem)." "the .ogg OR .wem files to include in the %pakName%.pak"
 
     set defaultWemFolder=%extractFolder%\%pakName%
     CALL :GetFolderPath !defaultWemFolder! defaultWemPath
     IF NOT EXIST !defaultWemPath! set defaultWemPath=""
-    CALL :AskFolder wemFolder !defaultWemPath! "Select the folder where the .wem files from %pakName%.pak have been extracted to." "all of the .wem files extracted from %pakName%.pak"
+    CALL :AskFolder "PacWeFo" wemFolder !defaultWemPath! "Select the folder where the .wem files from %pakName%.pak have been extracted to." "all of the .wem files extracted from %pakName%.pak"
 )
 
-CALL :AskBoolean excludeFiles "YES" "Would you like to remove sound files to %pakName%?"
+CALL :AskBoolean "PacExFi" excludeFiles "YES" "Would you like to remove sound files from %pakName%?"
 IF %excludeFiles% == TRUE (
     set defaultExcludeFolder=%convertFolder%\%pakName%\%excludeFolder%
     CALL :GetFolderPath !defaultExcludeFolder! defaultExcludePath
     echo defaultExcludePath: "!defaultExcludePath!"
     IF NOT EXIST !defaultExcludePath! set defaultExcludePath=""
     echo defaultExcludePath: "!defaultExcludePath!"
-    CALL :AskFolder excludeFolder !defaultExcludePath! "Select the folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to remove from %pakName%.pak"
+    CALL :AskFolder "PacExFo" excludeFolder !defaultExcludePath! "Select the folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to remove from %pakName%.pak"
 )
 EXIT /B 0
 
