@@ -303,7 +303,7 @@ IF %localFileFound% == TRUE (
     CALL :AskBoolean "AcqFi-%~1" useLocalFile "YES" "Use this file?"
     IF !useLocalFile! == FALSE CALL :AskFilePath "AcqFi-%~1" intFilePath %3
 )
-set %3=!intFilePath!
+set %2=!intFilePath!
 echo.
 EXIT /B 0
 
