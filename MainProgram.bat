@@ -194,6 +194,34 @@ set /A %2=!intInteger!
 echo.
 EXIT /B 0
 
+@REM Desc;  Asks the user for a string
+:AskString
+@REM Params;    1: Quesiton ID, 2: Output variable, 3: (Optional) Default string, 4: (Optional) Question string
+IF "%~3" == "" (
+    set /P userString%~1="%~4: "
+) ELSE (
+    IF NOT "%~4" == "" echo %~4
+    set /P userString%~1="Press ENTER for %3: "
+)
+
+IF "!userString%~1!" == "" (
+    IF NOT "%~3" == "" set intString%~1=%~3
+) ELSE (
+    set intString%~1=!userString%~1!
+)
+
+IF [!intString%~1!] == [] (
+    echo "!userString%~1!" is not a valid input.
+    echo.
+    CALL :AskString "%~1-" stringRetry %3 %4
+    set %2=!stringRetry!
+    EXIT /B 0
+)
+
+set %2=!intString%~1!
+echo.
+EXIT /B 0
+
 @REM Desc;  Asks the user for a folder path
 :AskFolder
 @REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default folder, 4: Question string 5: Type path question continuation
