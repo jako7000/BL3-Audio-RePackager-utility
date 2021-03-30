@@ -1,7 +1,6 @@
 @echo off
 SetLocal EnableDelayedExpansion
 
-set tempDummyFolderName=temp
 set tempKeyFileName=tempKey.txt
 set quickBmsExeName=quickbms_4gb_files.exe
 set bmsScriptName=*.bms
@@ -9,11 +8,13 @@ set ww2oggExeName=ww2ogg.exe
 set packedCodebooksBinName=packed_codebooks_aoTuV_603.bin
 set revorbExeName=revorb.exe
 set pakFileName=*.pak
+
 set extractFolder=extracted
 set convertFolder=converted
 set includeFolder=include
 set excludeFolder=exclude
 set ignoreFolder=ignore
+set tempFolder=temp
 
 set pakFileEncryptionKey=0x115EE4F8C625C792F37A503308048E79726E512F0BF8D2AD7C4C87BC5947CBA7
 set /A sleepDurationPerMinute = 10
@@ -21,7 +22,7 @@ set UI=TRUE
 
 @REM Magical File explorer variables!
 set FileSelectDialog=powershell -noprofile -command "&{[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null;$OpenFileDialog = New-Object System.Windows.Forms.OpenFileDialog; $OpenFileDialog.ShowDialog()|Out-Null; $OpenFileDialog.FileName}"
-set FolderSelectDialog="(new-object -COM 'Shell.Application').BrowseForFolder(0,'Please choose a folder.',0,0).self.path"
+set FolderSelectDialog="powershell (new-object -COM 'Shell.Application').BrowseForFolder(0,'Please choose a folder.',0,0).self.path"
 
 
 
@@ -358,6 +359,12 @@ EXIT /B 0
 IF NOT EXIST %~dpn1 MD %~dpn1
 EXIT /B 0
 
+@REM Desc;  Removes a given folder
+:RemoveFolder
+@REM Params;    1: Folder path
+IF EXIST %~f1 RMDIR /S /Q %~f1
+EXIT /B 0
+
 @REM Desc;  Deletes .tmp files
 :CleanTemps
 @REM Params;    1: Folder path to clean
@@ -367,6 +374,14 @@ IF !filesToDelete! GTR 0 DEL "%~dpn1\*.tmp"
 echo Cleaned !filesToDelete! .tmp files from
 echo    %~dpn1\
 echo.
+EXIT /B 0
+
+@REM Desc; Creates a backup copy of the given path
+:CreateBackup
+@REM Params;    1: Path to backup, 2: Path of the backup
+set backupPath=%~dpn1_ORIGINAL%~x1
+IF NOT EXIST %backupPath% COPY /D /Y %~f1 /B %backupPath% /B > NUL
+set %2=%backupPath%
 EXIT /B 0
 
 
@@ -388,7 +403,7 @@ IF /I !modeNumber! EQU 0 (
     echo    3 = Add ^& remove selected files from a .pak file.
     echo    4 = Save selected files into a .BL3AU file.
     echo    5 = Load files from a .BL3AU file.
-    CALL :AskNumber modeNumber 1 5 1
+    CALL :AskNumber "SOM-OM" modeNumber 1 5 1
 )
 
 IF !modeNumber! EQU 1 CALL :Extract
@@ -478,6 +493,8 @@ DEL %tempKeyFileName%
 CALL :PrintExtractEndTutorial %pakFilePath% %extractSubFolder%
 EXIT /B 0
 
+
+
 @REM Desc;  Converts .wem files into .ogg files
 :Convert
 @REM Params;    none
@@ -503,6 +520,8 @@ CALL :CleanTemps %convertSubFolder%
 
 CALL :PrintConvertEndTutorial %sourceFolder% %convertSubFolder%
 EXIT /B 0
+
+
 
 @REM Desc;  Adds & removes files from a .pak file
 :Package
@@ -530,18 +549,62 @@ CALL :AskBoolean "PacExFi" excludeFiles "YES" "Would you like to remove sound fi
 IF %excludeFiles% == TRUE (
     set defaultExcludeFolder=%convertFolder%\%pakName%\%excludeFolder%
     CALL :GetFolderPath !defaultExcludeFolder! defaultExcludePath
-    echo defaultExcludePath: "!defaultExcludePath!"
     IF NOT EXIST !defaultExcludePath! set defaultExcludePath=""
-    echo defaultExcludePath: "!defaultExcludePath!"
     CALL :AskFolder "PacExFo" excludeFolder !defaultExcludePath! "Select the folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to remove from %pakName%.pak"
 )
+
+IF %includeFiles% == FALSE IF %excludeFiles% == FALSE (
+    echo So you don't want to include or exclude files?
+    echo Then why did you call me? I'm quitting...
+    echo.
+    EXIT /B 0
+)
+
+echo The .pak file to patch:
+echo    %pakFilePath%
+IF %includeFiles% == TRUE echo The folder from which to load the original .wem filed:
+IF %includeFiles% == TRUE echo    %wemFolder%
+IF %includeFiles% == TRUE echo The folder from which to select sound files to include:
+IF %includeFiles% == TRUE echo    %includeFolder%
+IF %excludeFiles% == TRUE echo The folder from whick to select sound files to exclude:
+IF %excludeFiles% == TRUE echo    %excludeFolder%
+echo.
+CALL :AskBoolean "PacAFC" filesAreCorrect "" "Are you sure the paths listed above are correct?"
+IF %filesAreCorrect% == FALSE (
+    echo Please run this program again and choose the correct paths.
+    EXIT /B 0
+)
+
+echo Press any key to begin packaging...
+TIMEOUT -1 > NUL
+
+CALL :CreateBackup %pakFilePath% pakBacupPath
+CALL :RemoveFolder %tempFolder%
+CALL :MakeFolder %tempFolder%
+CALL :GetFolderPath %tempFolder% fullTempFolderPath
+
+IF %includeFiles% == TRUE FOR %%i IN ("%includeFolder%\*.*") DO COPY "%wemFolder%\%%~ni.wem" "%tempFolder%\%%~ni.wem" > NUL
+IF %excludeFiles% == TRUE FOR %%e IN ("%excludeFolder%\*.*") DO COPY                     NUL "%tempFolder%\%%~ne.wem" > NUL
+
+echo Launching QuickBMS...
+echo %pakFileEncryptionKey% > "%tempKeyFileName%"
+%quickBmsPath% -o -w -r %bmsScriptPath% %pakFilePath% %fullTempFolderPath% <%tempKeyFileName%
+DEL %tempKeyFileName%
+
+CALL :RemoveFolder %fullTempFolderPath%
+
+CALL :PrintPackageEndTutorial %pakFilePath% %pakBacupPath%
 EXIT /B 0
+
+
 
 @REM Desc;  Saves files from include/exclude folders into a .BL3AS (txt) file
 :Serialize
 @REM Params;    none
 echo Serialize placeholder func.
 EXIT /B 0
+
+
 
 @REM Desc;  Loads files from .BL3AS (txt) file into include/exclude folders
 :DeSerialize
@@ -582,8 +645,22 @@ echo    %~f2\
 echo.
 echo.
 echo Now you can sort the .ogg files to different folders depending if you want to include, exclude or ignore them.
+echo.
+echo.
 @REM ToDo;  Offer to create include/exclude/delete folders to the CONVERSION folder
 @REM        Make this a separate function
+EXIT /B 0
+
+@REM Desc;  Prints instructions for the user after conversion has been completed
+:PrintPackageEndTutorial
+@REM Params;    1: Packaged .pak path, 2: Backup .pak path
+echo.
+echo The %~nx1 file at
+echo    %~dp1
+echo has been patched. Move it to the game's directory.
+echo Backup of the original has been created to %~f2
+echo.
+echo.
 EXIT /B 0
 
 
