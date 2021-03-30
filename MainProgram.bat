@@ -113,7 +113,7 @@ EXIT /B 0
 
 @REM Desc;  Asks the user a boolean question
 :AskBoolean
-@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default value (YES|NO), 4: (Optional) Question string, 
+@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default value (YES|NO), 4: (Optional) Question string
 IF "%~3" == "" (
     set /P userBoolean%~1="%~4 (Y/N): "
 ) ELSE (
@@ -133,7 +133,7 @@ IF "%~3" == "" (
     set intBoolean%~1=FALSE
 ) ELSE IF /I "!userBoolean%~1!" == "0" (
     set intBoolean%~1=FALSE
-) ELSE IF /I "!userBoolean%~1!" == "" IF NOT "%~3" == "" (
+) ELSE IF /I "!userBoolean%~1!" == "" (
     IF "%~3" == "YES" set intBoolean%~1=TRUE
     IF "%~3" == "NO"  set intBoolean%~1=FALSE
 )
@@ -141,8 +141,8 @@ IF "%~3" == "" (
 IF "!intBoolean%~1!" == "" (
     echo "!userBoolean%~1!" is not a valid input.
     echo.
-    CALL :AskBoolean "%~1-" booleanRetry %3 %4
-    set %2=!booleanRetry!
+    CALL :AskBoolean "%~1-" booleanRetry%~1 %3 %4
+    set %2=!booleanRetry%~1!
     EXIT /B 0
 )
 set %2=!intBoolean%~1!
@@ -153,44 +153,36 @@ EXIT /B 0
 :AskNumber
 @REM Params;    1: Question ID, 2: Output variable, 3: Min, 4: Max, 5: (Optional) Default value, 6: (Optional) Question string,
 IF "%~5" == "" (
-    set /P userInt%~1="%~6 (%3-%4): "
+    set /P userInteger%~1="%~6 (%3-%4): "
 ) ELSE (
     IF NOT "%~6" == "" echo %~6
-    set /P userInt%~1="Press ENTER for %5 (%3-%4): "
+    set /P userInteger%~1="Press ENTER for %5 (%3-%4): "
 )
 
-set /A castUserInt="!userInt%~1!"
-IF "!userInt%~1!" == "" (
-    IF NOT "%~5" == "" (
-        set /A intInteger=%5
+set /A castUserInteger%~1=!userInteger%~1!
+echo User: "!userInteger%~1!", cast: "!castUserInteger%~1!"
+IF "!castUserInteger%~1!" EQU "!userInteger%~1!" (
+           IF "!castUserInteger%~1!" ==  "" (
+        IF NOT "%~5" == "" set /A intInteger%~1=%~5
+    ) ELSE IF "!castUserInteger%~1!" LSS "%3" (
+        echo !castUserInteger%~1! is too small. Value set to %3
+        set /A intInteger%~1=%3
+    ) ELSE IF "!castUserInteger%~1!" GTR "%4" (
+        echo !castUserInteger%~1! is too large. Value set to %4.
+        set /A intInteger%~1=%4
     ) ELSE (
-        echo "!userInt%~1!" is not a valid input.
-        echo.
-        CALL :AskNumber "%~1-" integerRetry %3 %4 %5 %6
-        set /A %2=!integerRetry!
-        EXIT /B 0
-    )
-) ELSE (
-    IF "%castUserInt%" EQU "!userInt%~1!" (
-        IF "%castUserInt%" LSS "%3" (
-            echo %castUserInt% is too small. Value set to %3
-            set /A intInteger=%3
-        ) ELSE IF "%castUserInt%" GTR "%4" (
-            echo %castUserInt% is too large. Value set to %4.
-            set /A intInteger=%4
-        ) ELSE (
-            set /A intInteger=%castUserInt%
-        )
-    ) ELSE (
-        echo "!userInt%~1!" is not a valid input.
-        echo.
-        CALL :AskNumber "%~1-" integerRetry %3 %4 %5 %6
-        set /A %2=!integerRetry!
-        EXIT /B 0
+        set /A intInteger%~1=!castUserInteger%~1!
     )
 )
 
-set /A %2=!intInteger!
+IF "!intInteger%~1!" == "" (
+    echo "!userInt%~1!" is not a valid input.
+    echo.
+    CALL :AskNumber "%~1-" integerRetry%~1 %3 %4 %5 %6
+    set /A %2=!integerRetry%~1!
+    EXIT /B 0
+)
+set /A %2=!intInteger%~1!
 echo.
 EXIT /B 0
 
@@ -210,109 +202,129 @@ IF "!userString%~1!" == "" (
     set intString%~1=!userString%~1!
 )
 
-IF [!intString%~1!] == [] (
+IF "!intString%~1!" == "" (
     echo "!userString%~1!" is not a valid input.
     echo.
-    CALL :AskString "%~1-" stringRetry %3 %4
-    set %2=!stringRetry!
+    CALL :AskString "%~1-" stringRetry%~1 %3 %4
+    set %2=!stringRetry%~1!
     EXIT /B 0
 )
-
 set %2=!intString%~1!
 echo.
 EXIT /B 0
 
 @REM Desc;  Asks the user for a folder path
 :AskFolder
-@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default folder, 4: Question string 5: Type path question continuation
-set defaultOk=FALSE
-echo %~4
-IF NOT "%~3" == "" CALL :AskBoolean "AskFo-%1" defaultOk "YES" "Is "%~f3\" ok?"
-IF %defaultOk% == TRUE (
-    set intFolderPath=%~f3
+@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default folder, 4: (Optional) Question string, 5: (Optional) Resource description string
+IF NOT "%~4" == "" echo %~4
+IF NOT "%~3" == "" CALL :AskBoolean "AskFo-%1" defaultOk%~1 "YES" "Is "%~f3\" ok?"
+IF "!defaultOk%~1!" == "TRUE" (
+    set intFolderPath%~1=%~f3
 ) ELSE (
     IF %UI% == TRUE (
-        CALL :ShowFolderDialog "AskFo-%1" givenFolderPath
+        CALL :ShowFolderDialog "AskFo-%~1" userFolderPath%~1 %5
     ) ELSE (
-        CALL :TypeFilePath "AskFo-%1" givenFolderPath %5
+        CALL :TypeFilePath "AskFo-%~1" userFolderPath%~1 %5
     )
-    IF "!givenFolderPath!" == "" (
-        echo "!givenFolderPath!" is not a valid input.
-        echo.
-        CALL :AskFolder "AskFo-%1" givenFolderPath %3 %4 %5
-    )
-    CALL :GetFolderPath !givenFolderPath! expandedFolderPath
-    set intFolderPath=!expandedFolderPath!
+
 )
-set %2=!intFolderPath!
+
+IF NOT "!userFolderPath%~1!" == "" set intFolderPath%~1=!userFolderPath%~1!
+
+IF "!intFolderPath%~1!" == "" (
+    echo "!intFolderPath%~1!" is not a valid path.
+    echo.
+    CALL :AskFolder "%~1" folderRetry%~1 %3 %4 %5
+    set %2=!folderRetry%~1!
+    EXIT /B 0
+)
+set %2=!intFolderPath%~1!
+echo.
 EXIT /B 0
 
 @REM Desc;  Asks the user for a file path
 :AskFilePath
-@REM Params;    1: Question ID, 2: Output variable, 3: File name
-IF %UI% == TRUE (
-    CALL :ShowFileDialog "AskFi-%1" givenFilePath %3
+@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default file, 4: (Optional) File name/extension 5: (Optional) Question string, 6: (Optional) Resource description string
+IF NOT "%~5" == "" echo %~5
+IF NOT "%~3" == "" CALL :AskBoolean "AskFi-%~1" defaultOk%~1 "YES" "Is "%~f3\" ok?"
+IF "!defaultOk%~1!" == "TRUE" (
+    set intFilePath%~1=%~f3
 ) ELSE (
-    CALL :TypeFilePath "AskFi-%1" givenFilePath %3
+    IF %UI% == TRUE (
+        CALL :ShowFileDialog "AskFi-%~1" userFilePath%~1 %6
+    ) ELSE (
+        CALL :TypeFilePath "AskFi-%~1" userFilePath%~1 %6
+    )
 )
 
-CALL :IsSpecifiedFile "!givenFilePath!" %3 isValid
-IF !isValid! == TRUE (
-    set %2=!givenFilePath!
+IF "%~4" == "" (
+    set intFilePath%~1=!userFilePath%~1!
 ) ELSE (
-    echo "%~3" not found at
-    IF "!givenFilePath!" == "" (echo    "!givenFilePath!") ELSE (echo    !givenFilePath!)
+    CALL :IsSpecifiedFile "AskFi-%~1" isValid%~1 !userFilePath%~1! %4
+    IF !isValid%~1! == TRUE set intFilePath%~1=!userFilePath%~1!
+)
+
+IF "!intFilePath%~1!" == "" (
+    echo "!userFilePath%~1!" is not a valid input.
     echo.
-    CALL :AskFilePath "%~1-" pathRetry %3
-    set %2=!pathRetry!
+    CALL :AskFilePath "%~1-" fileRetry%~1 %3 %4 %5 %6
+    set %2=!fileRetry%~1!
     EXIT /B 0
 )
+set %2=!intFilePath%~1!
 echo.
 EXIT /B 0
 
 @REM Desc;  Shows the user a windows folder select window for file selection 
 :ShowFolderDialog
-@REM Params;    1: Question ID, 2: Output variable
-FOR /F "usebackq delims=" %%I IN (`%FolderSelectDialog%`) DO set intFolderPath%~1=%%I
-set %2=!intFolderPath%~1!
+@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Folder name
+IF NOT "%~3" == "" echo Please select path to %~3.
+TIMEOUT 1 > NUL
+FOR /F "usebackq delims=" %%i IN (`%FolderSelectDialog%`) DO set userFolderPath%~1=%%~fi
+TIMEOUT 1 > NUL
+set %2=!userFolderPath%~1!
 EXIT /B 0
 
 @REM Desc;  Shows the user a windows file select window for file selection
 :ShowFileDialog
-@REM Params;    1: Question ID, 2: Output variable, 3: File name
-echo Please select path to "%~3" file.
+@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) File name
+IF NOT "%~3" == "" echo Please select path to %~3.
 TIMEOUT 1 > NUL
-FOR /F "delims=" %%i IN ('%FileSelectDialog%') DO set intFilePath%~1=%%~fi
-set %2=!intFilePath%~1!
+FOR /F "delims=" %%i IN ('%FileSelectDialog%') DO set userFilePath%~1=%%~fi
 TIMEOUT 1 > NUL
+set %2=!userFilePath%~1!
 EXIT /B 0
 
 @REM Desc;  Asks the user to type a file path
 :TypeFilePath
-@REM Params;    1: Question ID, 2: Output variable, 3: File name
-set /P givenFile%~1="Please type path to %~3: "
-CALL :GetFullPath !givenFile%~1! intFilePath
-set %2=!intFilePath!
+@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) File path
+IF "%~3" == (
+    set /P userPath%~1="Please type a path: "
+) ELSE (
+    set /P userPath%~1="Please type path to %~3: "
+)
+CALL :GetFullPath !userPath%~1! intPath%~1
+set %2=!intPath%~1!
 EXIT /B 0
 
 
 
 @REM Desc;  Check wether or not given path leads to specified file (type)
 :IsSpecifiedFile
-@REM Params;    1: Path to check, 2: File name/type, 3: Output boolean
-set fileName=%~2
-IF /I "%fileName:~1,1%" == "." (
-    set %3=TRUE
-    EXIT /B 0
-) 
+@REM Params;    1: Question ID, 2: Output variable, 3: File to validate, 4: Validation
+set fileName%~1=%~n3
+set fileExtension%~1=%~x3
+set validationName%~1=%~n4
+set validationExtension%~1=%~x4
 
-IF NOT EXIST "%~f1" (
-    set %3=FALSE
-) ELSE IF "%~nx1" == "%~nx2" (
-    set %3=TRUE
-) ELSE (
-    set %3=FALSE
-)
+IF NOT      "!validationName%~1!" == "" IF /I      "!validationName%~1!" ==      "!fileName%~1!" (set nameOk%~1=TRUE) ELSE (set nameOk%~1=FALSE)
+IF NOT "!validationExtension%~1!" == "" IF /I "!validationExtension%~1!" == "!fileExtension%~1!" (set typeOk%~1=TRUE) ELSE (set typeOk%~1=FALSE)
+
+SET intValidation%~1=TRUE
+IF !nameOk%~1! == FALSE set intValidation%~1=FALSE
+IF !typeOk%~1! == FALSE set intValidation%~1=FALSE
+
+set %2=!intValidation%~1!
 EXIT /B 0
 
 @REM Desc;  Sees if requested file is in the .bat directory
@@ -333,14 +345,14 @@ EXIT /B 0
 @REM        Returns file path.
 :AcquireFile
 @REM Params;    1: Question ID, 2: Output file path, 3: File name
-CALL :CheckLocalFile %3 localFileFound intFilePath
+CALL :CheckLocalFile %3 localFileFound intFilePath%~1
 IF %localFileFound% == TRUE (
     echo "%~nx3" found at
-    echo    %intFilePath%
+    echo    !intFilePath%~1!
     CALL :AskBoolean "AcqFi-%~1" useLocalFile "YES" "Use this file?"
-    IF !useLocalFile! == FALSE CALL :AskFilePath "AcqFi-%~1" intFilePath %3
+    IF !useLocalFile! == FALSE CALL :AskFilePath "AcqFi-%~1" intFilePath%~1 "" %3 "" %3
 )
-set %2=!intFilePath!
+set %2=!intFilePath%~1!
 echo.
 EXIT /B 0
 
