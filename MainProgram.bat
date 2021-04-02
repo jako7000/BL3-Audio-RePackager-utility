@@ -542,10 +542,11 @@ EXIT /B 0
 CALL :AcquireFile "ExtQBMS" quickBmsPath  %file_quickBms%
 CALL :AcquireFile "ExtBMSS" bmsScriptPath %type_bmsScript%
 CALL :AcquireFile "ExtPFP"  pakFilePath   %type_pak%
-CALL :AskFolder "ExtExFo" extractFolder %folder_extract% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
 
 CALL :GetFileName %pakFilePath% subFolderName
-set extractSubFolder=%extractFolder%\%subFolderName%
+set extractSubFolder=%folder_extract%\%subFolderName%
+
+CALL :AskFolder "ExtExFo" extractFolder %extractSubFolder% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
 
 CALL :Sleep 5 "Extraction will begin in 5 seconds." "Launching QuickBMS..."
 CALL :MakeFolder %extractSubFolder%
