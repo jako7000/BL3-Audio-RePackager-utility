@@ -1,38 +1,39 @@
 @echo off
 SetLocal EnableDelayedExpansion
 
-IF "%TEMP%" == "" (
-    set rootDir=%~dp0
-    set %TEMP% = %rootDir:~0,-1%
-    echo TEMP environment variable not found.
-    echo ATTEMPTING to use "%rootDir:~0,-1%" as TEMP instead.
-    echo (This probably doesn't work...)
-)
+set file_tempKey=%TEMP%\BL3AU_EnctryptionKey.txt
+set file_quickBms=quickbms_4gb_files.exe
+set file_ww2ogg=ww2ogg.exe
+set file_packedCodebooks=packed_codebooks_aoTuV_603.bin
+set file_revorb=revorb.exe
 
-set tempKeyFileName=%TEMP%\BL3AU_EnctryptionKey.txt
-set quickBmsExeName=quickbms_4gb_files.exe
-set bmsScriptName=*.bms
-set ww2oggExeName=ww2ogg.exe
-set packedCodebooksBinName=packed_codebooks_aoTuV_603.bin
-set revorbExeName=revorb.exe
-set pakFileName=*.pak
+set type_bmsScript=.bms
+set type_pak=.pak
+set type_wem=.wem
+set type_ogg=.ogg
+set type_fake=.fake
+set type_save=.BL3AU
 
-set extractFolder=extracted
-set convertFolder=converted
-set includeFolder=include
-set excludeFolder=exclude
-set ignoreFolder=ignore
-set tempFolder=%TEMP%\BL3AU\
-set saveFolder=%~dp0
+set folder_current=%~dp0
+set folder_temp=%TEMP%\BL3AU\
+set folder_extract=extracted
+set folder_convert=converted
+set folder_include=include
+set folder_exclude=exclude
+set folder_ignore=ignore
 
 set save_package=[PACKAGE]
 set save_include=[INCLUDE]
 set save_exclude=[EXCLUDE]
 set save_ignore=[IGNORE]
 set save_format=[FORMAT]
-set type_wem=.wem
-set type_ogg=.ogg
-set type_fake=.fake
+
+IF "%TEMP%" == "" (
+    echo TEMP environment variable not found.
+    echo ATTEMPTING to use "%rootDir:~0,-1%" as TEMP instead.
+    echo (This probably doesn't work...)
+    set %TEMP% = %folder_current:~0,-1%
+)
 
 set pakFileEncryptionKey=0x115EE4F8C625C792F37A503308048E79726E512F0BF8D2AD7C4C87BC5947CBA7
 set /A sleepDurationPerMinute = 10
@@ -538,19 +539,19 @@ EXIT /B 0
 @REM Desc;  Extracts .wem files from a .pak file
 :Extract
 @REM Params;    none
-CALL :AcquireFile "ExtQBMS" quickBmsPath  %quickBmsExeName%
-CALL :AcquireFile "ExtBMSS" bmsScriptPath %bmsScriptName%
-CALL :AcquireFile "ExtPFP"  pakFilePath   %pakFileName%
-CALL :AskFolder "ExtExFo" extractFolder %extractFolder% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
+CALL :AcquireFile "ExtQBMS" quickBmsPath  %file_quickBms%
+CALL :AcquireFile "ExtBMSS" bmsScriptPath %type_bmsScript%
+CALL :AcquireFile "ExtPFP"  pakFilePath   %type_pak%
+CALL :AskFolder "ExtExFo" extractFolder %folder_extract% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
 
 CALL :GetFileName %pakFilePath% subFolderName
 set extractSubFolder=%extractFolder%\%subFolderName%
 
 CALL :Sleep 5 "Extraction will begin in 5 seconds." "Launching QuickBMS..."
 CALL :MakeFolder %extractSubFolder%
-echo %pakFileEncryptionKey% > %tempKeyFileName%
-%quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractSubFolder% <%tempKeyFileName%
-DEL %tempKeyFileName%
+echo %pakFileEncryptionKey% > %file_tempKey%
+%quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractSubFolder% <%file_tempKey%
+DEL %file_tempKey%
 
 CALL :PrintExtractEndTutorial %pakFilePath% %extractSubFolder%
 EXIT /B 0
@@ -560,11 +561,11 @@ EXIT /B 0
 @REM Desc;  Converts .wem files into .ogg files
 :Convert
 @REM Params;    none
-CALL :AcquireFile "ConW2O" ww2oggPath          %ww2oggExeName%
-CALL :AcquireFile "ConPCB" packedCodebooksPath %packedCodebooksBinName%
-CALL :AcquireFile "ConRev" revorbPath          %revorbExeName%
+CALL :AcquireFile "ConW2O" ww2oggPath          %file_ww2ogg%
+CALL :AcquireFile "ConPCB" packedCodebooksPath %file_packedCodebooks%
+CALL :AcquireFile "ConRev" revorbPath          %file_revorb%
 CALL :AskFolder "ConSoFo" sourceFolder "" "Select folder with .wem files to convert to .ogg files." "the folder with the .wem files to convert"
-CALL :AskFolder "ConTaFo" targetFolder %convertFolder% "Select folder to which to save the .ogg files." "the folder where to save the .ogg files"
+CALL :AskFolder "ConTaFo" targetFolder %folder_convert% "Select folder to which to save the .ogg files." "the folder where to save the .ogg files"
 echo How many conversions would you like to run in paraller^?
 echo 3 is recommended. 9 will absolutely melt your computer.
 CALL :AskNumber "ConTC" threadCount 1 9 3
@@ -588,20 +589,20 @@ EXIT /B 0
 @REM Desc;  Adds & removes files from a .pak file
 :Package
 @REM Params;    none
-CALL :AcquireFile "PacQGMS" quickBmsPath  %quickBmsExeName%
-CALL :AcquireFile "PacBMSS" bmsScriptPath %bmsScriptName%
-CALL :AcquireFile "PacPFP"  pakFilePath   %pakFileName%
+CALL :AcquireFile "PacQGMS" quickBmsPath  %file_quickBms%
+CALL :AcquireFile "PacBMSS" bmsScriptPath %type_bmsScript%
+CALL :AcquireFile "PacPFP"  pakFilePath   %type_pak%
 
 CALL :GetFileName %pakFilePath% pakName
 
 CALL :AskBoolean "PackInFi" includeFiles "YES" "Would you like to add sound files to %pakName%.pak?"
 IF %includeFiles% == TRUE (
-    set defaultIncludeFolder=%convertFolder%\%pakName%\%includeFolder%
+    set defaultIncludeFolder=%folder_convert%\%pakName%\%folder_include%
     CALL :GetFolderPath !defaultIncludeFolder! defaultIncludePath
     IF NOT EXIST !defaultIncludePath! set defaultIncludePath=""
     CALL :AskFolder "PacInFo" includeFolder !defaultIncludePath! "Select the folder from which you want to include sound files (.ogg OR .wem)." "the .ogg OR .wem files to include in the %pakName%.pak"
 
-    set defaultWemFolder=%extractFolder%\%pakName%
+    set defaultWemFolder=%folder_extract%\%pakName%
     CALL :GetFolderPath !defaultWemFolder! defaultWemPath
     IF NOT EXIST !defaultWemPath! set defaultWemPath=""
     CALL :AskFolder "PacWeFo" wemFolder !defaultWemPath! "Select the folder where the .wem files from %pakName%.pak have been extracted to." "all of the .wem files extracted from %pakName%.pak"
@@ -609,7 +610,7 @@ IF %includeFiles% == TRUE (
 
 CALL :AskBoolean "PacExFi" excludeFiles "YES" "Would you like to remove sound files from %pakName%?"
 IF %excludeFiles% == TRUE (
-    set defaultExcludeFolder=%convertFolder%\%pakName%\%excludeFolder%
+    set defaultExcludeFolder=%folder_convert%\%pakName%\%folder_exclude%
     CALL :GetFolderPath !defaultExcludeFolder! defaultExcludePath
     IF NOT EXIST !defaultExcludePath! set defaultExcludePath=""
     CALL :AskFolder "PacExFo" excludeFolder !defaultExcludePath! "Select the folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to remove from %pakName%.pak"
@@ -641,17 +642,17 @@ echo Press any key to begin packaging...
 TIMEOUT -1 > NUL
 
 CALL :CreateBackup %pakFilePath% pakBacupPath
-CALL :RemoveFolder %tempFolder%
-CALL :MakeFolder %tempFolder%
-CALL :GetFolderPath %tempFolder% fullTempFolderPath
+CALL :RemoveFolder %folder_temp%
+CALL :MakeFolder %folder_temp%
+CALL :GetFolderPath %folder_temp% fullTempFolderPath
 
-IF %includeFiles% == TRUE FOR %%i IN ("%includeFolder%\*.*") DO COPY "%wemFolder%\%%~ni.wem" "%tempFolder%\%%~ni.wem" > NUL
-IF %excludeFiles% == TRUE FOR %%e IN ("%excludeFolder%\*.*") DO COPY                     NUL "%tempFolder%\%%~ne.wem" > NUL
+IF %includeFiles% == TRUE FOR %%i IN ("%includeFolder%\*.*") DO COPY "%wemFolder%\%%~ni.wem" "%folder_temp%\%%~ni.wem" > NUL
+IF %excludeFiles% == TRUE FOR %%e IN ("%excludeFolder%\*.*") DO COPY                     NUL "%folder_temp%\%%~ne.wem" > NUL
 
 echo Launching QuickBMS...
-echo %pakFileEncryptionKey% > "%tempKeyFileName%"
-%quickBmsPath% -o -w -r %bmsScriptPath% %pakFilePath% %fullTempFolderPath% <%tempKeyFileName%
-DEL %tempKeyFileName%
+echo %pakFileEncryptionKey% > "%file_tempKey%"
+%quickBmsPath% -o -w -r %bmsScriptPath% %pakFilePath% %fullTempFolderPath% <%file_tempKey%
+DEL %file_tempKey%
 
 CALL :RemoveFolder %fullTempFolderPath%
 
@@ -666,19 +667,19 @@ EXIT /B 0
 echo This utility saves the selected audio file selection.
 echo.
 
-CALL :AcquireFile "SerPFP" pakFilePath %pakFileName%
+CALL :AcquireFile "SerPFP" pakFilePath %type_pak%
 CALL :GetFileName %pakFilePath% pakName
 
 CALL :AskBoolean "SerIn" saveInclude "YES" "Do you want to save files to include?"
 IF %saveInclude% == TRUE (
-    set defaultIncludeFolder=%convertFolder%\%pakName%\%includeFolder%
+    set defaultIncludeFolder=%folder_convert%\%pakName%\%folder_include%
     CALL :GetFolderPath !defaultIncludeFolder! defaultIncludePath
     IF NOT EXIST !defaultIncludePath! set defaultIncludePath=""
     CALL :AskFolder "SerInFo" includeFolder !defaultIncludePath! "Select folder from which you want to include sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to include in the %pakName%.pak save file"
 )
 CALL :AskBoolean "SerEx" saveExclude "YES" "Do you want to save files to exclude?"
 IF %saveInclude% == TRUE (
-    set defaultExcludeFolder=%convertFolder%\%pakName%\%excludeFolder%
+    set defaultExcludeFolder=%folder_convert%\%pakName%\%folder_exclude%
     CALL :GetFolderPath !defaultExcludeFolder! defaultExcludePath
     IF NOT EXIST !defaultExcludePath! set defaultExcludePath=""
     CALL :AskFolder "SerExFo" excludeFolder !defaultExcludePath! "Select folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to exclude in the %pakName%.pak save file"
@@ -687,7 +688,7 @@ echo Do you want to save files to ignore?
 echo    NOTE: Ignoring files does nothing. They're just recorded as "not included or excluded".
 CALL :AskBoolean "SerIg" saveIgnore "NO"
 IF %saveIgnore% == TRUE (
-    set defaultIgnoreFolder=%convertFolder%\%pakName%\%ignoreFolder%
+    set defaultIgnoreFolder=%folder_convert%\%pakName%\%folder_ignore%
     IF NOT EXIST !defaultIgnoreFolder! set defaultIgnoreFolder=""
     CALL :AskFolder "SerIgFo" ignoreFolder !defaultIgnoreFolder! "Select folder from wich you want to ignore sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to exclude in the %pakName%.pak save file"
 )
@@ -700,13 +701,13 @@ IF %saveInclude% == FALSE IF %saveInclude% == FALSE IF %saveIgnore% == FALSE (
 
 CALL :AskString "SerFiNa" saveName "" "Name for save file"
 set saveName=%saveName%.%pakName%.BL3AU
-CALL :AskFolder "SerSaFo" saveFolder %currentFolder:~0,-1% "Select folder to which you'd like to send the "!saveName!" save file." "the folder to where you'd like to send the "!saveName!" save file"
+CALL :AskFolder "SerSaFo" saveFolder %folder_current:~0,-1% "Select folder to which you'd like to send the "!saveName!" save file." "the folder to where you'd like to send the "!saveName!" save file"
 set saveFile=%saveFolder%\%saveName%
 
 echo Selections from
 IF %saveInclude% == TRUE echo   %includeFolder%
 IF %saveExclude% == TRUE echo   %excludeFolder%
-IF %saveIgnore% == TRUE echo   %ignoreFolder%
+IF %saveIgnore%  == TRUE echo   %ignoreFolder%
 echo will be saved to
 echo    %saveFolder%\%saveName%
 echo.
