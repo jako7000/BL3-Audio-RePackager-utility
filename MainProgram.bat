@@ -228,7 +228,7 @@ EXIT /B 0
 :AskFolder
 @REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default folder, 4: (Optional) Question string, 5: (Optional) Resource description string
 IF NOT "%~4" == "" echo %~4
-IF NOT "%~3" == "" CALL :AskBoolean "AskFo-%1" defaultOk%~1 "YES" "Is "%~f3\" ok?"
+IF NOT "%~3" == "" CALL :AskBoolean "AskFo-%~1" defaultOk%~1 "YES" "Is "%~f3\" ok?"
 IF "!defaultOk%~1!" == "TRUE" (
     set intFolderPath%~1=%~f3
 ) ELSE (
@@ -289,7 +289,7 @@ EXIT /B 0
 @REM Desc;  Shows the user a windows folder select window for file selection 
 :ShowFolderDialog
 @REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Folder name
-IF NOT "%~3" == "" echo Please select path to %~3.
+IF NOT "%~3" == "" echo Please select path to %~3
 TIMEOUT 1 > NUL
 FOR /F "usebackq delims=" %%i IN (`%FolderSelectDialog%`) DO set userFolderPath%~1=%%~fi
 TIMEOUT 1 > NUL
@@ -299,7 +299,7 @@ EXIT /B 0
 @REM Desc;  Shows the user a windows file select window for file selection
 :ShowFileDialog
 @REM Params;    1: Question ID, 2: Output variable, 3: (Optional) File name
-IF NOT "%~3" == "" echo Please select path to %~3.
+IF NOT "%~3" == "" echo Please select path to %~3
 TIMEOUT 1 > NUL
 FOR /F "delims=" %%i IN ('%FileSelectDialog%') DO set userFilePath%~1=%%~fi
 TIMEOUT 1 > NUL
@@ -309,7 +309,7 @@ EXIT /B 0
 @REM Desc;  Asks the user to type a file path
 :TypeFilePath
 @REM Params;    1: Question ID, 2: Output variable, 3: (Optional) File path
-IF "%~3" == (
+IF "%~3" == "" (
     set /P userPath%~1="Please type a path: "
 ) ELSE (
     set /P userPath%~1="Please type path to %~3: "
@@ -361,8 +361,8 @@ IF %localFileFound% == TRUE (
     echo "%~nx3" found at
     echo    !intFilePath%~1!
     CALL :AskBoolean "AcqFi-%~1" useLocalFile "YES" "Use this file?"
-    IF !useLocalFile! == FALSE CALL :AskFilePath "AcqFi-%~1" intFilePath%~1 "" %3 "" %3
 )
+IF NOT "!useLocalFile!" == "TRUE" CALL :AskFilePath "AcqFi-%~1" intFilePath%~1 "" %3 "" %3
 set %2=!intFilePath%~1!
 echo.
 EXIT /B 0
@@ -402,6 +402,18 @@ set quotelessString=%extraLongString:"=%
 CALL set normalizedString=%%quotelessString:~-%length%%%
 set %3=%normalizedString%
 EXIT /B 0
+
+@REM Desc;  Removes spaces from the beginning & end of a string
+:Trim
+@REM Params;    1: String to trim, 2: Output variable, 3: (Optional) Max amount of spaces to trim from the end
+set str=%~1
+set /A endTrimCount=32
+IF NOT "%~3" == "" set /A endTrimCount=%~3
+FOR /F "tokens=* delims= " %%c IN ("!str!") DO set str=%%c
+FOR /L %%c IN (1,1,!endTrimCount!) DO IF "!str:~-1!"==" " set str=!str:~0,-1!
+set %2=!str!
+EXIT /B 0
+
 
 @REM Desc;  Sleeps for a given amount while displaying an updating message
 :Sleep
@@ -534,6 +546,40 @@ CALL :NormalizeLength 3 "%remainingPercentage%" currentPercentage
 CALL :NormalizeLength 10 "%~3" currentOperation
 echo %currentString%/%~1, %remainingString% remaining, !currentPercentage!%% complete. %currentOperation% %~4
 EXIT /B 0
+
+
+
+@REM Desc; Reads a .BL3AU save file & saves all listed packages to their own (global) variables
+:ReadPackageConfigurations
+@REM Params;    1: Save file, 2: Output variable (number of packages)
+set savePackage=FALSE
+set /A packagesSaved=0
+FOR /F "eol=/ tokens=*" %%l IN (%~1) DO (
+    set lineContent=%%~l
+    IF !savePackage! == TRUE IF "!lineContent:~-4!" == "%type_pak%" (
+        set /A packagesSaved+=1
+        set savePackage=FALSE
+
+        set packageNames[!packagesSaved!]=%%l
+        set packageIncludes[!packagesSaved!]=FALSE
+        set packageExcludes[!packagesSaved!]=FALSE
+        set packageIgnores[!packagesSaved!]=FALSE
+    )
+    IF "!lineContent!" == "%save_package%" (
+        set savePackage=TRUE
+    ) ELSE (
+        set savePackage=FALSE
+    )
+
+    IF "!lineContent!" == "%save_include%" set packageIncludes[!packagesSaved!]=TRUE
+    IF "!lineContent!" == "%save_exclude%" set packageExcludes[!packagesSaved!]=TRUE
+    IF "!lineContent!" == "%save_ignore%"  set packageIgnores[!packagesSaved!]=TRUE
+)
+set %2=!packagesSaved!
+EXIT /B 0
+
+
+
 
 
 @REM Desc;  Extracts .wem files from a .pak file
@@ -715,23 +761,21 @@ echo.
 echo Press any key to create save file...
 TIMEOUT -1 > NUL
 
-echo %save_package%>%saveFile%
+echo //Borderlands 3 Audio Utility save file for %pakName%.pak>%saveFile%
+echo %save_package%>>%saveFile%
 echo %pakName%.pak>>%saveFile%
 IF %saveInclude% == TRUE (
-    echo %save_format%>>%saveFile%
-    echo %type_wem%>>%saveFile%
+    echo.>>%saveFile%
     echo %save_include%>>%saveFile%
     FOR %%i IN ("%includeFolder%\*.*") DO echo %%~ni>>%saveFile%
 )
 IF %saveExclude% == TRUE (
-    echo %save_format%>>%saveFile%
-    echo %type_fake%>>%saveFile%
+    echo.>>%saveFile%
     echo %save_exclude%>>%saveFile%
     FOR %%e IN ("%excludeFolder%\*.*") DO echo %%~ne>>%saveFile%
 )
 IF %saveIgnore% == TRUE (
-    echo %save_format%>>%saveFile%
-    echo %type_wem%>>%saveFile%
+    echo.>>%saveFile%
     echo %save_ignore%>>%saveFile%
     FOR %%i IN ("%ignoreFolder%\*.*") DO echo %%~ni>>%saveFile%
 )
@@ -744,7 +788,94 @@ EXIT /B 0
 @REM Desc;  Loads files from .BL3AU (txt) file into include/exclude folders
 :DeSerialize
 @REM Params;    none
-echo DeSerialize placeholder func.
+echo This utility loads .BL3AU save files to the directory.
+echo.
+
+CALL :AcquireFile "DesSaFi" saveFile %type_save%
+CALL :ReadPackageConfigurations %saveFile% pakFileCount
+
+set function_loopPackages=FOR /L %%p IN (1, 1, %pakFileCount%) DO
+
+%function_loopPackages% (
+    IF !packageIncludes[%%p]! == TRUE CALL :AskBoolean "DesLoIn-%%p" loadInclude[%%p] "YES" "Load files included in !packageNames[%%p]!?"
+    IF !packageExcludes[%%p]! == TRUE CALL :AskBoolean "DesLoEx-%%p" loadExclude[%%p] "YES" "Load files excluded in !packageNames[%%p]!?"
+    IF  !packageIgnores[%%p]! == TRUE CALL :AskBoolean "DesLoIg-%%p"  loadIgnore[%%p] "YES"  "Load files ignored in !packageNames[%%p]!?"
+
+    set hasOperation[%%p]=FALSE
+    IF !loadInclude[%%p]! == TRUE set hasOperation[%%p]=TRUE
+    IF !loadExclude[%%p]! == TRUE set hasOperation[%%p]=TRUE
+    IF  !loadIgnore[%%p]! == TRUE set hasOperation[%%p]=TRUE
+
+    CALL :GetFileName !packageNames[%%p]! pakNam[%%p]
+)
+
+%function_loopPackages% IF !hasOperation[%%p]! == TRUE (
+    CALL :AskBoolean "DesCoPa-%%p" hasConverted[%%p] "" "Have you converted the files extracted from !packageNames[%%p]!?"
+
+    set doProcess[%%p]=FALSE
+    set convertedPath[%%p]=""
+    set defaultConvertedFolder=%folder_convert%\!pakNam[%%p]!
+    IF NOT EXIST !defaultConvertedFolder! set defaultConvertedFolder=""
+    CALL :AskFolder "DesCoPa-%%p" convertedPath[%%p] !defaultConvertedFolder! "Select the folder where you have converted !packageNames[%%p]! files to." "the folder where you have converted !packageNames[%%p]! files to"
+    IF NOT !convertedPath[%%p]! == "" set doProcess[%%p]=TRUE
+)
+
+%function_loopPackages% IF !doProcess[%%p]! == TRUE (
+    FOR /F %%f IN ('dir /B /S /A:-D !convertedPath[%%p]!\*.*') DO (
+        IF NOT EXIST !convertedPath[%%p]!\%%~nxf MOVE /Y %%~ff !convertedPath[%%p]!\%%~nxf > NUL 2> NUL
+    )
+    FOR /F %%f IN ('dir /B /S /A:D !convertedPath[%%p]!\*.*') DO CALL :RemoveFolder %%~ff
+    echo Cleaned !convertedPath[%%p]!
+)
+
+%function_loopPackages% IF !doProcess[%%p]! == TRUE (
+    IF !loadInclude[%%p]! == TRUE CALL :MakeFolder !convertedPath[%%p]!\%folder_include%
+    IF !loadExclude[%%p]! == TRUE CALL :MakeFolder !convertedPath[%%p]!\%folder_exclude%
+    IF  !loadIgnore[%%p]! == TRUE CALL :MakeFolder !convertedPath[%%p]!\%folder_ignore%
+)
+
+echo.
+@REM Loop throught the save file per each processed .pak in it so I have access to the %%p variable
+%function_loopPackages% IF !doProcess[%%p]! == TRUE (
+    set operationMode=""
+    set currentPackage=""
+    set /A currentPackageIndex=0
+    set currentFolder=""
+    set currentFile=""
+    set /A filesNotFound[%%p]=0
+
+    FOR /F "eol=/ tokens=*" %%l IN (%saveFile%) DO (
+        CALL :Trim %%l line
+
+        IF "!line:~0,1!" == "[" (
+            set operationMode=!line!
+        ) ELSE IF NOT "!operationMode!" == "" (
+            IF !operationMode! == %save_package% (
+                set currentPackage=!line!
+                set /A currentPackageIndex+=1
+            )
+            IF %%p EQU !currentPackageIndex! IF !doProcess[%%p]! == TRUE (
+                set currentFileName=!line!.ogg
+                set currentFileRelative=!convertedPath[%%p]!\!currentFileName!
+                CALL :GetFullPath !currentFileRelative! currentFilePath
+                IF !operationMode! == %save_include% MOVE /Y !currentFilePath! !convertedPath[%%p]!\%folder_include%\!currentFileName! > NUL 2> NUL
+                IF !operationMode! == %save_exclude% MOVE /Y !currentFilePath! !convertedPath[%%p]!\%folder_exclude%\!currentFileName! > NUL 2> NUL
+                IF !operationMode! == %save_ignore%  MOVE /Y !currentFilePath! !convertedPath[%%p]!\%folder_ignore%\!currentFileName!  > NUL 2> NUL
+                IF ERRORLEVEL 1 set /A filesNotFound[%%p]+=1
+            )
+        )
+    )
+)
+
+%function_loopPackages% IF !doProcess[%%p]! == TRUE IF !filesNotFound[%%p]! GTR 0 (
+    echo There were problems loading the save for !packageNames[%%p]!
+    echo This was most likely caused by missing .ogg files.
+    echo Make sure ALL .ogg files extracted ^& converted from !packageNames[%%p]! are in
+    echo    !convertedPath[%%p]!
+    echo.
+)
+
+CALL :PrintDeSerializeEndTutorial %saveFile% %pakFileCount%
 EXIT /B 0
 
 
@@ -808,7 +939,15 @@ echo Now you can store your sound configurations in a compact format and share t
 echo.
 EXIT /B 0
 
-
+@REM Desc;  Prints instructions for the user after save file had been loadeed
+:PrintDeSerializeEndTutorial
+@REM Params;    1: Save file path, 2: .pak count
+echo Saves loaded from
+echo    %~f1
+echo to
+FOR /L %%p IN (1, 1, %~2) DO IF !doProcess[%%p]! == TRUE echo    !convertedPath[%%p]!\
+echo.
+EXIT /B 0
 
 
 
