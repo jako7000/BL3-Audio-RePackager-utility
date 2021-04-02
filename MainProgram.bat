@@ -23,6 +23,16 @@ set includeFolder=include
 set excludeFolder=exclude
 set ignoreFolder=ignore
 set tempFolder=%TEMP%\BL3AU\
+set saveFolder=%~dp0
+
+set save_package=[PACKAGE]
+set save_include=[INCLUDE]
+set save_exclude=[EXCLUDE]
+set save_ignore=[IGNORE]
+set save_format=[FORMAT]
+set type_wem=.wem
+set type_ogg=.ogg
+set type_fake=.fake
 
 set pakFileEncryptionKey=0x115EE4F8C625C792F37A503308048E79726E512F0BF8D2AD7C4C87BC5947CBA7
 set /A sleepDurationPerMinute = 10
@@ -368,8 +378,12 @@ EXIT /B 0
 
 @REM Desc;  Expands input to folder path
 :GetFolderPath
-@REM Params;    1: Input path, 2: Output variable
-set %2=%~dpn1
+@REM Params;    1: Input path, 2: Output variable 3: (Optional) (Boolean) No name 
+IF "%~3" == "TRUE" (
+    set %2=%~dp1
+) ELSE (
+    set %2=%~dpn1
+)
 EXIT /B 0
 
 @REM Desc;  Expands input to file name
@@ -649,7 +663,78 @@ EXIT /B 0
 @REM Desc;  Saves files from include/exclude folders into a .BL3AU (txt) file
 :Serialize
 @REM Params;    none
-echo Serialize placeholder func.
+echo This utility saves the selected audio file selection.
+echo.
+
+CALL :AcquireFile "SerPFP" pakFilePath %pakFileName%
+CALL :GetFileName %pakFilePath% pakName
+
+CALL :AskBoolean "SerIn" saveInclude "YES" "Do you want to save files to include?"
+IF %saveInclude% == TRUE (
+    set defaultIncludeFolder=%convertFolder%\%pakName%\%includeFolder%
+    CALL :GetFolderPath !defaultIncludeFolder! defaultIncludePath
+    IF NOT EXIST !defaultIncludePath! set defaultIncludePath=""
+    CALL :AskFolder "SerInFo" includeFolder !defaultIncludePath! "Select folder from which you want to include sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to include in the %pakName%.pak save file"
+)
+CALL :AskBoolean "SerEx" saveExclude "YES" "Do you want to save files to exclude?"
+IF %saveInclude% == TRUE (
+    set defaultExcludeFolder=%convertFolder%\%pakName%\%excludeFolder%
+    CALL :GetFolderPath !defaultExcludeFolder! defaultExcludePath
+    IF NOT EXIST !defaultExcludePath! set defaultExcludePath=""
+    CALL :AskFolder "SerExFo" excludeFolder !defaultExcludePath! "Select folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to exclude in the %pakName%.pak save file"
+)
+echo Do you want to save files to ignore?
+echo    NOTE: Ignoring files does nothing. They're just recorded as "not included or excluded".
+CALL :AskBoolean "SerIg" saveIgnore "NO"
+IF %saveIgnore% == TRUE (
+    set defaultIgnoreFolder=%convertFolder%\%pakName%\%ignoreFolder%
+    IF NOT EXIST !defaultIgnoreFolder! set defaultIgnoreFolder=""
+    CALL :AskFolder "SerIgFo" ignoreFolder !defaultIgnoreFolder! "Select folder from wich you want to ignore sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to exclude in the %pakName%.pak save file"
+)
+
+IF %saveInclude% == FALSE IF %saveInclude% == FALSE IF %saveIgnore% == FALSE (
+    echo So you don't want to save files to include, exclude, or even ignore?
+    echo Then why did you call me? I'm quitting...
+    EXIT /B 0
+)
+
+CALL :AskString "SerFiNa" saveName "" "Name for save file"
+set saveName=%saveName%.%pakName%.BL3AU
+CALL :AskFolder "SerSaFo" saveFolder %currentFolder:~0,-1% "Select folder to which you'd like to send the "!saveName!" save file." "the folder to where you'd like to send the "!saveName!" save file"
+set saveFile=%saveFolder%\%saveName%
+
+echo Selections from
+IF %saveInclude% == TRUE echo   %includeFolder%
+IF %saveExclude% == TRUE echo   %excludeFolder%
+IF %saveIgnore% == TRUE echo   %ignoreFolder%
+echo will be saved to
+echo    %saveFolder%\%saveName%
+echo.
+echo Press any key to create save file...
+TIMEOUT -1 > NUL
+
+echo %save_package%>%saveFile%
+echo %pakName%.pak>>%saveFile%
+IF %saveInclude% == TRUE (
+    echo %save_format%>>%saveFile%
+    echo %type_wem%>>%saveFile%
+    echo %save_include%>>%saveFile%
+    FOR %%i IN ("%includeFolder%\*.*") DO echo %%~ni>>%saveFile%
+)
+IF %saveExclude% == TRUE (
+    echo %save_format%>>%saveFile%
+    echo %type_fake%>>%saveFile%
+    echo %save_exclude%>>%saveFile%
+    FOR %%e IN ("%excludeFolder%\*.*") DO echo %%~ne>>%saveFile%
+)
+IF %saveIgnore% == TRUE (
+    echo %save_format%>>%saveFile%
+    echo %type_wem%>>%saveFile%
+    echo %save_ignore%>>%saveFile%
+    FOR %%i IN ("%ignoreFolder%\*.*") DO echo %%~ni>>%saveFile%
+)
+
+CALL :PrintSerializeEndTutorial %saveFile%
 EXIT /B 0
 
 
@@ -708,6 +793,16 @@ echo    %~dp1
 echo has been patched. Move it to the game's directory.
 echo Backup of the original has been created to %~f2
 echo.
+echo.
+EXIT /B 0
+
+@REM Desc;  Prints instructions for the user after save file creation has been completed.
+:PrintSerializeEndTutorial
+@REM Params;    1: Save file
+echo Save file created to
+echo    %~f1
+echo.
+echo Now you can store your sound configurations in a compact format and share them with other people.
 echo.
 EXIT /B 0
 

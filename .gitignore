@@ -2,13 +2,14 @@
 *.pak
 *.pak_ORIGINAL
 *.bl3as*
-extracted/*
 *.wem
 *.bnk
+extracted/*
 converted/*
 keep/*
 delete/*
 *.ogg
+*.BL3AU
 
 # External programs
 *.exe
