@@ -150,7 +150,7 @@ set configLoadAnnounced=FALSE
 FOR /F "eol=/ tokens=1,2 delims==" %%a IN (%path_config%) DO IF NOT "%%~a" == "" IF NOT "%%~b" == "" (
     IF !configLoadAnnounced! == FALSE (
         set configLoadAnnounced=TRUE
-        echo Loaded values from
+        echo Loaded values from config file at
         echo    %path_config%
     )
     set %%~a=%%~b
@@ -666,6 +666,9 @@ EXIT /B 0
 @REM Desc;  Extracts .wem files from a .pak file
 :Extract
 @REM Params;    none
+echo This utility extracts .wem files from .pak files.
+echo.
+
 CALL :AcquireFile "ExtQBMS" quickBmsPath  %path_quickBms%  path_quickBms
 CALL :AcquireFile "ExtBMSS" bmsScriptPath %type_bmsScript% path_bmsScript
 CALL :AcquireFile "ExtPFP"  pakFilePath   %type_pak%
@@ -691,6 +694,9 @@ EXIT /B 0
 @REM Desc;  Converts .wem files into .ogg files
 :Convert
 @REM Params;    none
+echo This utility converts .wem files into .ogg files.
+echo.
+
 CALL :AcquireFile "ConW2O" ww2oggPath          %path_ww2ogg%          path_ww2ogg
 CALL :AcquireFile "ConPCB" packedCodebooksPath %path_packedCodebooks% path_packedCodebooks
 CALL :AcquireFile "ConRev" revorbPath          %path_revorb%          path_revorb
@@ -719,6 +725,9 @@ EXIT /B 0
 @REM Desc;  Adds & removes files from a .pak file
 :Package
 @REM Params;    none
+echo This utility patches a .pak file.
+echo.
+
 CALL :AcquireFile "PacQGMS" quickBmsPath  %path_quickBms%  path_quickBms
 CALL :AcquireFile "PacBMSS" bmsScriptPath %type_bmsScript% path_bmsScript
 CALL :AcquireFile "PacPFP"  pakFilePath   %type_pak%
