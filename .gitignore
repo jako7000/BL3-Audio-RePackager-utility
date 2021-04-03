@@ -1,4 +1,4 @@
-# Extracted & converted files
+# Resources created by this program
 *.pak
 *.pak_ORIGINAL
 *.bl3as*
@@ -10,6 +10,7 @@ keep/*
 delete/*
 *.ogg
 *.BL3AU
+*.ini
 
 # External programs
 *.exe

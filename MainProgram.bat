@@ -1,11 +1,34 @@
 @echo off
 SetLocal EnableDelayedExpansion
 
-set file_tempKey=%TEMP%\BL3AU_EnctryptionKey.txt
+set path_current=%~dp0
+set path_current=%path_current:~0,-1%
+set path_temp=%TEMP%
+IF NOT EXIST %path_temp% set path_temp=%path_current%\temp
+set path_tempFiles=%path_temp%\BL3AU_soundFiles
+
+set folder_extract=extracted
+set folder_convert=converted
+set folder_include=include
+set folder_exclude=exclude
+
+set file_tempKey=BL3AU_EnctryptionKey.txt
+set file_tempConfig=BL3AU_config.ini
+set file_config=BL3AU_config.ini
 set file_quickBms=quickbms_4gb_files.exe
 set file_ww2ogg=ww2ogg.exe
 set file_packedCodebooks=packed_codebooks_aoTuV_603.bin
 set file_revorb=revorb.exe
+
+set path_extract=%path_current%\%folder_extract%
+set path_convert=%path_current%\%folder_convert%
+set path_tempKey=%path_temp%\%file_tempKey%
+set path_tempConfig=%path_temp%\%file_tempConfig%
+set path_config=%path_current%\%file_config%
+set path_quickBms=%path_current%\%file_quickBms%
+set path_ww2ogg=%path_current%\%file_ww2ogg%
+set path_packedCodebooks=%path_current%\%file_packedCodebooks%
+set path_revorb=%path_current%\%file_revorb%
 
 set type_bmsScript=.bms
 set type_pak=.pak
@@ -14,32 +37,26 @@ set type_ogg=.ogg
 set type_fake=.fake
 set type_save=.BL3AU
 
-set folder_current=%~dp0
-set folder_temp=%TEMP%\BL3AU\
-set folder_extract=extracted
-set folder_convert=converted
-set folder_include=include
-set folder_exclude=exclude
-set folder_ignore=ignore
-
 set save_package=[PACKAGE]
 set save_folder=[FOLDER]
 set save_files=[FILES]
 
-IF "%TEMP%" == "" (
-    echo TEMP environment variable not found.
-    echo ATTEMPTING to use "%rootDir:~0,-1%" as TEMP instead.
-    echo (This probably doesn't work...)
-    set %TEMP% = %folder_current:~0,-1%
-)
-
 set pakFileEncryptionKey=0x115EE4F8C625C792F37A503308048E79726E512F0BF8D2AD7C4C87BC5947CBA7
-set /A sleepDurationPerMinute = 10
+set /A sleepDurationPerMinute=10
 set UI=TRUE
+set useConfig=TRUE
 
 @REM Magical File explorer variables!
 set FileSelectDialog=powershell -noprofile -command "&{[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null;$OpenFileDialog = New-Object System.Windows.Forms.OpenFileDialog; $OpenFileDialog.ShowDialog()|Out-Null; $OpenFileDialog.FileName}"
 set FolderSelectDialog="powershell (new-object -COM 'Shell.Application').BrowseForFolder(0,'Please choose a folder.',0,0).self.path"
+
+@REM Variable name translations
+set locale[path_extract]=Default extract path
+set locale[path_convert]=Default convert path
+set locale[path_quickBms]=QuickBMS.exe
+set locale[path_ww2ogg]=ww2ogg.exe
+set locale[path_ww2ogg]=packed_codebooks_aoTuV_603.bin
+set locale[path_revorb]=revorb.exe
 
 
 
@@ -51,6 +68,8 @@ set FolderSelectDialog="powershell (new-object -COM 'Shell.Application').BrowseF
 CALL :SetUI %1 %2 %3 %4 %5 %6 %7 %8 %9
 CALL :SetSleepDuration %1 %2 %3 %4 %5 %6 %7 %8 %9
 CALL :SetEncryptionKey %1 %2 %3 %4 %5 %6 %7 %8 %9
+CALL :SetConfig %1 %2 %3 %4 %5 %6 %7 %8 %9
+CALL :ReadConfig
 
 IF /I "%~1" == "Thread" (
     CALL :ManageThread %2 %3 %4 %5 %6 %7
@@ -63,7 +82,7 @@ EXIT /B 0
 @REM Desc;  Sets the global "UI" variable
 @REM        FALSE = Ask files using command prompt, TRUE = Ask files using windows file exporer
 :SetUI
-@REM Params;    Parameters given to the program, searches for -UI
+@REM Params;    Parameters given to the program, searches for -ui
 CALL :SearchBooleanParameterValue "-ui" UI %1 %2 %3 %4 %5 %6 %7 %8 %9
 EXIT /B 0
 
@@ -75,8 +94,14 @@ EXIT /B 0
 
 @REM Desc;  Sets the global "pakFileEncryptionKey" variable
 :SetEncryptionKey
-@REM Params;    Parameters given to the program, searched for -key
+@REM Params;    Parameters given to the program, searches for -key
 CALL :SearchParameterVariable "-key" pakFileEncryptionKey %1 %2 %3 %4 %5 %6 %7 %8 %9
+EXIT /B 0
+
+@REM Desc;  Sets the global "useConfig" variable
+:SetConfig
+@REM Params;    Parameters given to the program, searches for -conf
+CALL :SearchBooleanParameterValue "-conf" useConfig %1 %2 %3 %4 %5 %6 %7 %8 %9
 EXIT /B 0
 
 @REM Desc;  Searches & returns value for a given parameter name
@@ -114,6 +139,31 @@ IF /I "%parameter%" == "" (
 )
 SHIFT /3
 CALL :SearchBooleanParameterValue %1 %2 %3 %4 %5 %6 %7 %8 %9
+EXIT /B 0
+
+@REM Desc;  Reads BL3AU config file & loads settings
+:ReadConfig
+@REM Params;    none
+IF NOT EXIST %path_config% EXIT /B 0
+
+set configLoadAnnounced=FALSE
+FOR /F "eol=/ tokens=1,2 delims==" %%a IN (%path_config%) DO IF NOT "%%~a" == "" IF NOT "%%~b" == "" (
+    IF !configLoadAnnounced! == FALSE (
+        set configLoadAnnounced=TRUE
+        echo Loaded values from
+        echo    %path_config%
+    )
+    set %%~a=%%~b
+    set valueName=%%~a
+    IF NOT "!locale[%%~a]!" == "" set valueName=!locale[%%~a]!
+    CALL :NormalizeLength 33 "!valueName!" normalizedKey
+    echo !normalizedKey!: %%~b
+)
+IF !configLoadAnnounced! == TRUE (
+    echo.
+    echo.
+    echo.
+)
 EXIT /B 0
 
 
@@ -220,6 +270,24 @@ IF "!intString%~1!" == "" (
 )
 set %2=!intString%~1!
 echo.
+EXIT /B 0
+
+@REM Desc;  Returns asked folder path
+:AcquireFolder
+@REM Params;    1: Question string, 2: Output variable, 3: Folder name/path, 4: (Optional) Config key, 5: (Optional) Question string, 6: (Optional) Resource description string
+set intFolder%~1=""
+set useFoundFolder=FALSE
+IF EXIST !%~4! (
+    set intFolder%~1=!%~4!
+    CALL :GetFullPath !%~nx4! folderPath
+    echo "%~nx3" found at
+    echo    !folderPath!
+    CALL :AskBoolean "AcqFo-%~1" useFoundFolder "YES" "Use this folder?"
+)
+IF !useFoundFolder! == FALSE CALL :AskFolder "AcqFo-%~1" intFolder%~1 "" %5 %6
+
+IF NOT "%~4" == "" CALL :SaveToConfig %4 "!intFolder%~1!"
+set %2=!intFolder%~1!
 EXIT /B 0
 
 @REM Desc;  Asks the user for a folder path
@@ -348,26 +416,53 @@ IF EXIST %~1 (
 )
 EXIT /B 0
 
-@REM Desc;  Check if wanted file is present,
-@REM        if yes, asks user if this is ok,
-@REM        if not ok, asks for wanted file.
-@REM        Returns file path.
+@REM Desc;  Returns asked file
 :AcquireFile
-@REM Params;    1: Question ID, 2: Output file path, 3: File name
-CALL :CheckLocalFile %3 localFileFound intFilePath%~1
-IF %localFileFound% == TRUE (
+@REM Params;    1: Question ID, 2: Output variable, 3: File name/path/extension, 4: (Optional) Config key
+set intFile%~1=""
+set useFoundFile=FALSE
+IF EXIST !%~4! (
+    set intFile%~1=!%~4!
+    CALL :GetFullPath !%~nx4! filePath
     echo "%~nx3" found at
-    echo    !intFilePath%~1!
-    CALL :AskBoolean "AcqFi-%~1" useLocalFile "YES" "Use this file?"
+    echo    !filePath!
+    CALL :AskBoolean "AcqFi-%~1" useFoundFile "YES" "Use this file?"
 )
-IF NOT "!useLocalFile!" == "TRUE" CALL :AskFilePath "AcqFi-%~1" intFilePath%~1 "" %3 "" %3
-set %2=!intFilePath%~1!
-echo.
+IF !useFoundFile! == FALSE CALL :AskFilePath "AcqFi-%~1" intFile%~1 "" %3 "" %3
+
+IF NOT "%~4" == "" CALL :SaveToConfig %4 !intFile%~1!
+set %2=!intFile%~1!
 EXIT /B 0
 
+@REM Desc;  Saves given value to a given key to the config file
+:SaveToConfig
+@REM Params;    1: Value key, 2: Value value
+IF %useConfig% == FALSE EXIT /B 0
 
+IF NOT EXIST %path_config% echo. >%path_config%
+set updateExisting=FALSE
+set oldValue=""
+CALL :GetStringLength "%~1" keyLength
+FOR /F "eol=; tokens=1 delims==" %%c IN ('findstr /I "%~1=" %path_config%') DO (
+    set updateExisting=TRUE
+    set oldValue=%%~c
+)
 
+IF !updateExisting! == FALSE (
+    echo %~1=%~2>>%path_config%
+) ELSE IF NOT "%~2" == "!oldValue!" (
+    FOR /F "eol= delims=" %%l IN (%path_config%) DO (
+        CALL :Trim "%%l" line
+        IF "!line:~0,%keyLength%!" == "%~1" (
+            echo %~1=%~2>>%path_tempConfig%
+        ) ELSE (
+            echo %%l>>%path_tempConfig%
+        )
+    )
 
+    MOVE /Y %path_tempConfig% %path_config% >NUL
+)
+EXIT /B 0
 
 @REM Desc;  Extends input to full path
 :GetFullPath
@@ -381,7 +476,7 @@ EXIT /B 0
 set rootDir=%~1
 set pathToRelate=%~2
 CALL :GetStringLength %rootDir% rootLength
-set /A charsToRemove=%rootLength%-3
+set /A charsToRemove=%rootLength%-2
 set %3=!pathToRelate:~%rootLength%!
 EXIT /B 0
 
@@ -416,8 +511,8 @@ EXIT /B 0
 @REM Params;    1: Input string, 2: Output variable
 SetLocal disableDelayedExpansion
 set /A fullLength=0
-FOR /F "delims=:" %%n IN ('"(CMD /V:ON /C echo(%~1!&echo()|FINDSTR /O ^^"') DO set /A fullLength=%%n-3
-EndLocal & set /A %~2=%fullLength%
+FOR /F "delims=:" %%n IN ('"(cmd /V:ON /C echo(%~1!&echo()|findstr /O ^^"') DO set /A fullLength=%%n-3
+EndLocal & set /A %~2=%fullLength%-1
 EXIT /B 0
 
 @REM Desc;  Removes spaces from the beginning & end of a string
@@ -571,20 +666,22 @@ EXIT /B 0
 @REM Desc;  Extracts .wem files from a .pak file
 :Extract
 @REM Params;    none
-CALL :AcquireFile "ExtQBMS" quickBmsPath  %file_quickBms%
-CALL :AcquireFile "ExtBMSS" bmsScriptPath %type_bmsScript%
+CALL :AcquireFile "ExtQBMS" quickBmsPath  %path_quickBms%  path_quickBms
+CALL :AcquireFile "ExtBMSS" bmsScriptPath %type_bmsScript% path_bmsScript
 CALL :AcquireFile "ExtPFP"  pakFilePath   %type_pak%
 
 CALL :GetFileName %pakFilePath% subFolderName
-set extractSubFolder=%folder_extract%\%subFolderName%
+set extractSubFolder=%path_extract%\%subFolderName%
 
 CALL :AskFolder "ExtExFo" extractFolder %extractSubFolder% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
+CALL :GetFolderPath %extractFolder% extractRoot TRUE
+CALL :SaveToConfig path_extract !extractRoot:~0,-1!
 
 CALL :Sleep 5 "Extraction will begin in 5 seconds." "Launching QuickBMS..."
 CALL :MakeFolder %extractSubFolder%
-echo %pakFileEncryptionKey% > %file_tempKey%
-%quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractSubFolder% <%file_tempKey%
-DEL %file_tempKey%
+echo %pakFileEncryptionKey% > %path_tempKey%
+%quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractSubFolder% <%path_tempKey%
+DEL %path_tempKey%
 
 CALL :PrintExtractEndTutorial %pakFilePath% %extractSubFolder%
 EXIT /B 0
@@ -594,11 +691,11 @@ EXIT /B 0
 @REM Desc;  Converts .wem files into .ogg files
 :Convert
 @REM Params;    none
-CALL :AcquireFile "ConW2O" ww2oggPath          %file_ww2ogg%
-CALL :AcquireFile "ConPCB" packedCodebooksPath %file_packedCodebooks%
-CALL :AcquireFile "ConRev" revorbPath          %file_revorb%
+CALL :AcquireFile "ConW2O" ww2oggPath          %path_ww2ogg%          path_ww2ogg
+CALL :AcquireFile "ConPCB" packedCodebooksPath %path_packedCodebooks% path_packedCodebooks
+CALL :AcquireFile "ConRev" revorbPath          %path_revorb%          path_revorb
 CALL :AskFolder "ConSoFo" sourceFolder "" "Select folder with .wem files to convert to .ogg files." "the folder with the .wem files to convert"
-CALL :AskFolder "ConTaFo" targetFolder %folder_convert% "Select folder to which to save the .ogg files." "the folder where to save the .ogg files"
+CALL :AcquireFolder "ConTaFo" targetFolder %path_convert% path_convert "Select folder to which to save the .ogg files." "the folder where to save the .ogg files"
 echo How many conversions would you like to run in paraller^?
 echo 3 is recommended. 9 will absolutely melt your computer.
 CALL :AskNumber "ConTC" threadCount 1 9 3
@@ -622,20 +719,20 @@ EXIT /B 0
 @REM Desc;  Adds & removes files from a .pak file
 :Package
 @REM Params;    none
-CALL :AcquireFile "PacQGMS" quickBmsPath  %file_quickBms%
-CALL :AcquireFile "PacBMSS" bmsScriptPath %type_bmsScript%
+CALL :AcquireFile "PacQGMS" quickBmsPath  %path_quickBms%  path_quickBms
+CALL :AcquireFile "PacBMSS" bmsScriptPath %type_bmsScript% path_bmsScript
 CALL :AcquireFile "PacPFP"  pakFilePath   %type_pak%
 
 CALL :GetFileName %pakFilePath% pakName
 
 CALL :AskBoolean "PackInFi" includeFiles "YES" "Would you like to add sound files to %pakName%.pak?"
 IF %includeFiles% == TRUE (
-    set defaultIncludeFolder=%folder_convert%\%pakName%\%folder_include%
+    set defaultIncludeFolder=%path_convert%\%pakName%\%folder_include%
     CALL :GetFolderPath !defaultIncludeFolder! defaultIncludePath
     IF NOT EXIST !defaultIncludePath! set defaultIncludePath=""
     CALL :AskFolder "PacInFo" includeFolder !defaultIncludePath! "Select the folder from which you want to include sound files (.ogg OR .wem)." "the .ogg OR .wem files to include in the %pakName%.pak"
 
-    set defaultWemFolder=%folder_extract%\%pakName%
+    set defaultWemFolder=%path_extract%\%pakName%
     CALL :GetFolderPath !defaultWemFolder! defaultWemPath
     IF NOT EXIST !defaultWemPath! set defaultWemPath=""
     CALL :AskFolder "PacWeFo" wemFolder !defaultWemPath! "Select the folder where the .wem files from %pakName%.pak have been extracted to." "all of the .wem files extracted from %pakName%.pak"
@@ -643,7 +740,7 @@ IF %includeFiles% == TRUE (
 
 CALL :AskBoolean "PacExFi" excludeFiles "YES" "Would you like to remove sound files from %pakName%?"
 IF %excludeFiles% == TRUE (
-    set defaultExcludeFolder=%folder_convert%\%pakName%\%folder_exclude%
+    set defaultExcludeFolder=%path_convert%\%pakName%\%folder_exclude%
     CALL :GetFolderPath !defaultExcludeFolder! defaultExcludePath
     IF NOT EXIST !defaultExcludePath! set defaultExcludePath=""
     CALL :AskFolder "PacExFo" excludeFolder !defaultExcludePath! "Select the folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to remove from %pakName%.pak"
@@ -675,19 +772,18 @@ echo Press any key to begin packaging...
 TIMEOUT -1 > NUL
 
 CALL :CreateBackup %pakFilePath% pakBacupPath
-CALL :RemoveFolder %folder_temp%
-CALL :MakeFolder %folder_temp%
-CALL :GetFolderPath %folder_temp% fullTempFolderPath
+CALL :RemoveFolder %path_tempFiles%
+CALL :MakeFolder %path_tempFiles%
 
-IF %includeFiles% == TRUE FOR %%i IN ("%includeFolder%\*.*") DO COPY "%wemFolder%\%%~ni.wem" "%folder_temp%\%%~ni.wem" > NUL
-IF %excludeFiles% == TRUE FOR %%e IN ("%excludeFolder%\*.*") DO COPY                     NUL "%folder_temp%\%%~ne.wem" > NUL
+IF %includeFiles% == TRUE FOR %%i IN ("%includeFolder%\*.*") DO COPY "%wemFolder%\%%~ni.wem" "%path_tempFiles%\%%~ni.wem" > NUL
+IF %excludeFiles% == TRUE FOR %%e IN ("%excludeFolder%\*.*") DO COPY                     NUL "%path_tempFiles%\%%~ne.wem" > NUL
 
 echo Launching QuickBMS...
-echo %pakFileEncryptionKey% > "%file_tempKey%"
-%quickBmsPath% -o -w -r %bmsScriptPath% %pakFilePath% %fullTempFolderPath% <%file_tempKey%
-DEL %file_tempKey%
+echo %pakFileEncryptionKey% > "%path_tempKey%"
+%quickBmsPath% -o -w -r %bmsScriptPath% %pakFilePath% %path_tempFiles% <%path_tempKey%
+DEL %path_tempKey%
 
-CALL :RemoveFolder %fullTempFolderPath%
+CALL :RemoveFolder %path_tempFiles%
 
 CALL :PrintPackageEndTutorial %pakFilePath% %pakBacupPath%
 EXIT /B 0
@@ -703,14 +799,14 @@ echo.
 CALL :AcquireFile "SerPFP" pakFilePath %type_pak%
 CALL :GetFileName %pakFilePath% pakName
 
-set defaultConvertedFolder=%folder_convert%\%pakName%
+set defaultConvertedFolder=%path_convert%\%pakName%
 CALL :GetFolderPath !defaultConvertedFolder! defaultConvertedPath
 IF NOT EXIST !defaultConvertedPath! set defaultConvertedPath=""
 CALL :AskFolder "SerCoFo" convertedFolder !defaultConvertedPath! "Select the folder containing sorted .ogg OR .wem you'd like to save." "the folder from which you'd like to save the sorted .ogg OR .wem files"
 
 CALL :AskString "SerFiNa" saveName "" "Name for save file"
 set saveName=%saveName%.%pakName%.BL3AU
-CALL :AskFolder "SerSaFo" saveFolder %folder_current:~0,-1% "Select folder to which you'd like to send the "!saveName!" save file." "the folder to where you'd like to send the "!saveName!" save file"
+CALL :AskFolder "SerSaFo" saveFolder %path_current:~0,-1% "Select folder to which you'd like to send the "!saveName!" save file." "the folder to where you'd like to send the "!saveName!" save file"
 set saveFile=%saveFolder%\%saveName%
 
 set /A subFolderCount=0
@@ -831,8 +927,8 @@ set function_loopPackages=FOR /L %%p IN (1, 1, !pakFileCount!) DO
     CALL :AskBoolean "DesRePa-%%p" doLoadPackage[%%p] "" "Have you extracted or converted the the files from !packageNames[%%p]!?"
 
     IF !doLoadPackage[%%p]! == TRUE (
-        set defaultResourceFolder=%folder_convert%\!pakName[%%p]!
-        IF NOT EXIST !defaultResourceFolder! set defaultResourceFolder=%folder_extract%\!pakName[%%p]!
+        set defaultResourceFolder=%path_convert%\!pakName[%%p]!
+        IF NOT EXIST !defaultResourceFolder! set defaultResourceFolder=%path_extract%\!pakName[%%p]!
         IF NOT EXIST !defaultResourceFolder! set defaultResourceFolder=""
 
         CALL :AskFolder "DesRePa-%%p" resourcePaths[%%p] !defaultResourceFolder! "Select the folder where you have converted (.ogg) or extracted (.wem) the files from !packageNames[%%p]! to." "the folder where you have converted or extracted !packageNames[%%p]! files to"
