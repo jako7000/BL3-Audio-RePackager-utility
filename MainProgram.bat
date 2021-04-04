@@ -157,7 +157,7 @@ FOR /F "eol=/ tokens=1,2 delims==" %%a IN (%path_config%) DO IF NOT "%%~a" == ""
     set valueName=%%~a
     IF NOT "!locale[%%~a]!" == "" set valueName=!locale[%%~a]!
     CALL :NormalizeLength 33 "!valueName!" normalizedKey
-    echo !normalizedKey!: %%~b
+    echo -!normalizedKey!: %%~b
 )
 IF !configLoadAnnounced! == TRUE (
     echo.
@@ -272,84 +272,82 @@ set %2=!intString%~1!
 echo.
 EXIT /B 0
 
-@REM Desc;  Returns asked folder path
-:AcquireFolder
-@REM Params;    1: Question string, 2: Output variable, 3: Folder name/path, 4: (Optional) Config key, 5: (Optional) Question string, 6: (Optional) Resource description string
-set intFolder%~1=""
-set useFoundFolder=FALSE
-IF EXIST !%~4! (
-    set intFolder%~1=!%~4!
-    CALL :GetFullPath !%~nx4! folderPath
-    echo "%~nx3" found at
-    echo    !folderPath!
-    CALL :AskBoolean "AcqFo-%~1" useFoundFolder "YES" "Use this folder?"
+@REM Desc;  Returns asked file or folder
+:AcquireResource
+@REM Params;    1: Question string, 2: Output variable, 3: (BOOLEAN) Should exist, 4: File/Folder, 5: (Optional) Config key, 6: (Optional) Question string
+set intResource%~1=
+set useFoundResource=FALSE
+CALL :GetFileName %4 resourceName
+IF "!resourceName!" == "" CALL :GetFileName "!%~5!" resourceName
+CALL :GetFileExtension %4 resourceExtension
+IF "!resourceExtension!" == "" CALL :GetFileExtension "!%~5!" resourceExtension
+set isFile=FALSE
+set resourceType=folder
+IF NOT "!resourceExtension!" == "" (
+    set isFile=TRUE
+    set resourceType=file
 )
-IF !useFoundFolder! == FALSE CALL :AskFolder "AcqFo-%~1" intFolder%~1 "" %5 %6
 
-IF NOT "%~4" == "" CALL :SaveToConfig %4 "!intFolder%~1!"
-set %2=!intFolder%~1!
+IF %3 == FALSE              set intResource%~1=%~4
+IF EXIST %path_current%\%~4 set intResource%~1=%path_current%\%~4
+IF EXIST !%~5!              set intResource%~1=!%~5!
+
+IF NOT "%~6" == "" echo %~6
+IF NOT "!intResource%~1!" == "" (
+    CALL :GetFullPath !intResource%~1! resourcePath
+    echo Use "!resourceName!!resourceExtension!" at
+    echo    !resourcePath!
+    CALL :AskBoolean "AcqRe-%~1" useFoundResource "YES" "Use this !resourceType!?"
+)
+
+IF !useFoundResource! == FALSE CALL :AskResource "AcqRe-%~1" userResourcePath%~1 !isFile! "Please select path to !resourceName!!resourceExtension!"
+
+IF %3 == FALSE (
+    IF NOT "!userResourcePath%~1!" == "" set intResource%~1=!userResourcePath%~1!
+) ELSE (
+    set isValid=TRUE
+    CALL :IsSpecifiedFile "AcqRe-%~1" isValid !userResourcePath%~1! !resourceName!!resourceExtension!
+    IF !isValid! == TRUE IF EXIST !userResourcePath%~1! set intResource%~1=!userResourcePath%~1!
+)
+
+CALL :GetFullPath "!intResource%~1!" intResource%~1
+
+IF "!intResource%~1!" == "" (
+    IF NOT "!userResourcePath%~1!" == "" echo "!userResourcePath%~1!"
+    echo Given resource is not valid.
+    echo.
+    CALL :AcquireResource "%~1-" resourceRetry%~1 %3 %4 %5 %6
+    set intResource%~1=!resourceRetry%~1!
+)
+
+IF NOT "%~5" == "" CALL :SaveToConfig %5 "!intResource%~1!"
+set %2=!intResource%~1!
+set questionId=%~1
+IF NOT "!questionId:~-1!" == "-" echo.
 EXIT /B 0
 
-@REM Desc;  Asks the user for a folder path
-:AskFolder
-@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default folder, 4: (Optional) Question string, 5: (Optional) Resource description string
+@REM Desc;  Propts user to input a file or folder
+:AskResource
+@REM Params;    1: Question string, 2: Output variable, 3: Is file, 4: (Optional) Question string
 IF NOT "%~4" == "" echo %~4
-IF NOT "%~3" == "" CALL :AskBoolean "AskFo-%~1" defaultOk%~1 "YES" "Is "%~f3\" ok?"
-IF "!defaultOk%~1!" == "TRUE" (
-    set intFolderPath%~1=%~f3
+IF %UI% == FALSE (
+    CALL :TypeFilePath "AskRe-%~1" userResourcePath%~1
 ) ELSE (
-    IF %UI% == TRUE (
-        CALL :ShowFolderDialog "AskFo-%~1" userFolderPath%~1 %5
+    IF %3 == TRUE (
+        CALL :ShowFileDialog "AskRe-%~1" userResourcePath%~1
     ) ELSE (
-        CALL :TypeFilePath "AskFo-%~1" userFolderPath%~1 %5
-    )
-
-)
-
-IF NOT "!userFolderPath%~1!" == "" set intFolderPath%~1=!userFolderPath%~1!
-
-IF "!intFolderPath%~1!" == "" (
-    echo "!intFolderPath%~1!" is not a valid path.
-    echo.
-    CALL :AskFolder "%~1" folderRetry%~1 %3 %4 %5
-    set %2=!folderRetry%~1!
-    EXIT /B 0
-)
-set %2=!intFolderPath%~1!
-echo.
-EXIT /B 0
-
-@REM Desc;  Asks the user for a file path
-:AskFilePath
-@REM Params;    1: Question ID, 2: Output variable, 3: (Optional) Default file, 4: (Optional) File name/extension 5: (Optional) Question string, 6: (Optional) Resource description string
-IF NOT "%~5" == "" echo %~5
-IF NOT "%~3" == "" CALL :AskBoolean "AskFi-%~1" defaultOk%~1 "YES" "Is "%~f3\" ok?"
-IF "!defaultOk%~1!" == "TRUE" (
-    set intFilePath%~1=%~f3
-) ELSE (
-    IF %UI% == TRUE (
-        CALL :ShowFileDialog "AskFi-%~1" userFilePath%~1 %6
-    ) ELSE (
-        CALL :TypeFilePath "AskFi-%~1" userFilePath%~1 %6
+        CALL :ShowFolderDialog "AskRe-%~1" userResourcePath%~1
     )
 )
 
-IF "%~4" == "" (
-    set intFilePath%~1=!userFilePath%~1!
-) ELSE (
-    CALL :IsSpecifiedFile "AskFi-%~1" isValid%~1 !userFilePath%~1! %4
-    IF !isValid%~1! == TRUE set intFilePath%~1=!userFilePath%~1!
+CALL :GetFullPath !userResourcePath%~1! fullPath%~1
+IF "!fullPath%~1!" == "" (
+    echo Input is not valid.
+    echo.
+    CALL :AskResource "%~1-" resourceRetry%~1 %3
 )
 
-IF "!intFilePath%~1!" == "" (
-    echo "!userFilePath%~1!" is not a valid input.
-    echo.
-    CALL :AskFilePath "%~1-" fileRetry%~1 %3 %4 %5 %6
-    set %2=!fileRetry%~1!
-    EXIT /B 0
-)
-set %2=!intFilePath%~1!
-echo.
+set %2=!fullPath%~1!
 EXIT /B 0
 
 @REM Desc;  Shows the user a windows folder select window for file selection 
@@ -388,7 +386,7 @@ EXIT /B 0
 
 @REM Desc;  Check wether or not given path leads to specified file (type)
 :IsSpecifiedFile
-@REM Params;    1: Question ID, 2: Output variable, 3: File to validate, 4: Validation
+@REM Params;    1: Question ID, 2: Output variable, 3: File to validate, 4: Validation, 5: (Optional) Debug
 set fileName%~1=%~n3
 set fileExtension%~1=%~x3
 set validationName%~1=%~n4
@@ -400,6 +398,12 @@ IF NOT "!validationExtension%~1!" == "" IF /I "!validationExtension%~1!" == "!fi
 SET intValidation%~1=TRUE
 IF !nameOk%~1! == FALSE set intValidation%~1=FALSE
 IF !typeOk%~1! == FALSE set intValidation%~1=FALSE
+
+IF "%~5" == "TRUE" (
+    echo :IsSpecifiedFile; fiNa: "!fileName%~1!", fiEx: "!fileExtension%~1!"
+    echo :IsSpecifiedFile; vaNa: "!validationName%~1!", vaEx: "!validationExtension%~1!",
+    echo :IsSpecifiedFile; naOk: "!nameOk%~1!", exOk: "!typeOk%~1!"
+)
 
 set %2=!intValidation%~1!
 EXIT /B 0
@@ -416,30 +420,12 @@ IF EXIST %~1 (
 )
 EXIT /B 0
 
-@REM Desc;  Returns asked file
-:AcquireFile
-@REM Params;    1: Question ID, 2: Output variable, 3: File name/path/extension, 4: (Optional) Config key
-set intFile%~1=""
-set useFoundFile=FALSE
-IF EXIST !%~4! (
-    set intFile%~1=!%~4!
-    CALL :GetFullPath !%~nx4! filePath
-    echo "%~nx3" found at
-    echo    !filePath!
-    CALL :AskBoolean "AcqFi-%~1" useFoundFile "YES" "Use this file?"
-)
-IF !useFoundFile! == FALSE CALL :AskFilePath "AcqFi-%~1" intFile%~1 "" %3 "" %3
-
-IF NOT "%~4" == "" CALL :SaveToConfig %4 !intFile%~1!
-set %2=!intFile%~1!
-EXIT /B 0
-
 @REM Desc;  Saves given value to a given key to the config file
 :SaveToConfig
 @REM Params;    1: Value key, 2: Value value
 IF %useConfig% == FALSE EXIT /B 0
 
-IF NOT EXIST %path_config% echo. >%path_config%
+IF NOT EXIST %path_config% echo //Config file for Borderlands 3 Audio Utility >%path_config%
 set updateExisting=FALSE
 set oldValue=""
 CALL :GetStringLength "%~1" keyLength
@@ -464,10 +450,21 @@ IF !updateExisting! == FALSE (
 )
 EXIT /B 0
 
-@REM Desc;  Extends input to full path
-:GetFullPath
-@REM Params;    1: Input path, 2: Output variable
-set %2=%~f1
+@REM Desc;  Shifts through given paths and returns first existing one
+:FindExistingResource
+@REM Params;    1: Output variable, 2-> Paths to test
+set pathToTest=%~f2
+set lastTest=FALSE
+
+IF "!pathToTest!" == "" (
+    set %2=""
+    EXIT /B 0
+) ELSE IF EXIST !pathToTest! (
+    set %2=!pathToTest!
+    EXIT /B 0
+)
+SHIFT /2
+CALL :FindExistingResource %1 %2 %3 %4 %5 %6 %7 %8 %9
 EXIT /B 0
 
 @REM Desc;   Extends input to path relative to given root
@@ -478,6 +475,14 @@ set pathToRelate=%~2
 CALL :GetStringLength %rootDir% rootLength
 set /A charsToRemove=%rootLength%-2
 set %3=!pathToRelate:~%rootLength%!
+EXIT /B 0
+
+@REM Desc;  Extends input to full path
+:GetFullPath
+@REM Params;    1: Input path, 2: Output variable
+set fullPath=%~f1
+IF "!fullPath:~-1!" == "\" set fullPath=!fullPath:~0,-1!
+set %2=!fullPath!
 EXIT /B 0
 
 @REM Desc;  Expands input to folder path
@@ -494,6 +499,12 @@ EXIT /B 0
 :GetFileName
 @REM Params;    1: Input path, 2: Output variable
 set %2=%~n1
+EXIT /B 0
+
+@REM Desc;  Expands input to file extension
+:GetFileExtension
+@REM Params;    1: Input pat, 2: Output variable
+set %2=%~x1
 EXIT /B 0
 
 @REM Desc;  Adds spacing to the start of a value so it has a given length
@@ -669,21 +680,20 @@ EXIT /B 0
 echo This utility extracts .wem files from .pak files.
 echo.
 
-CALL :AcquireFile "ExtQBMS" quickBmsPath  %path_quickBms%  path_quickBms
-CALL :AcquireFile "ExtBMSS" bmsScriptPath %type_bmsScript% path_bmsScript
-CALL :AcquireFile "ExtPFP"  pakFilePath   %type_pak%
+CALL :AcquireResource "ExtQBMS" path_quickBms  TRUE %path_quickBms%  path_quickBms
+CALL :AcquireResource "ExtBMSS" path_bmsScript TRUE %type_bmsScript% path_bmsScript
+CALL :AcquireResource "ExtPFP"  pakFilePath    TRUE %type_pak%       ""
 
-CALL :GetFileName %pakFilePath% subFolderName
-set extractSubFolder=%path_extract%\%subFolderName%
+CALL :AcquireResource "ExtExFo" extractFolder FALSE %path_extract% path_extract "Where would you like to extract .wem files to?"
+set extractSubFolder=%extractFolder%\%subFolderName%
 
-CALL :AskFolder "ExtExFo" extractFolder %extractSubFolder% "Where would you like to extract .wem files to?" "the folder where you want the .wem files extracted to"
 CALL :GetFolderPath %extractFolder% extractRoot TRUE
 CALL :SaveToConfig path_extract !extractRoot:~0,-1!
 
 CALL :Sleep 5 "Extraction will begin in 5 seconds." "Launching QuickBMS..."
 CALL :MakeFolder %extractSubFolder%
 echo %pakFileEncryptionKey% > %path_tempKey%
-%quickBmsPath% -o %bmsScriptPath% %pakFilePath% %extractSubFolder% <%path_tempKey%
+%path_quickBms% -o %path_bmsScript% %pakFilePath% %extractSubFolder% <%path_tempKey%
 DEL %path_tempKey%
 
 CALL :PrintExtractEndTutorial %pakFilePath% %extractSubFolder%
@@ -697,27 +707,36 @@ EXIT /B 0
 echo This utility converts .wem files into .ogg files.
 echo.
 
-CALL :AcquireFile "ConW2O" ww2oggPath          %path_ww2ogg%          path_ww2ogg
-CALL :AcquireFile "ConPCB" packedCodebooksPath %path_packedCodebooks% path_packedCodebooks
-CALL :AcquireFile "ConRev" revorbPath          %path_revorb%          path_revorb
-CALL :AskFolder "ConSoFo" sourceFolder "" "Select folder with .wem files to convert to .ogg files." "the folder with the .wem files to convert"
-CALL :AcquireFolder "ConTaFo" targetFolder %path_convert% path_convert "Select folder to which to save the .ogg files." "the folder where to save the .ogg files"
+CALL :AcquireResource "ConW2O" path_ww2ogg          TRUE %path_ww2ogg%          path_ww2ogg
+CALL :AcquireResource "ConPCB" path_packedCodebooks TRUE %path_packedCodebooks% path_packedCodebooks
+CALL :AcquireResource "ConRev" path_revorb          TRUE %path_revorb%          path_revorb
+
+CALL :AcquireResource "ConPaFi" pakFilePath TRUE %type_pak% "" "Select the .pak file from which the .wem files were extracted from."
+CALL :GetFileName %pakFilePath% pakName
+
+echo Select the root folder for extracted .wem files.
+echo (By default called "extracted", and should contain a folder called "%pakName%" by default.)
+CALL :AcquireResource "ConExFo" path_extract FALSE %path_extract% path_extract
+set extractSubFolder=%path_extract%\%pakName%
+
+echo Select folder where to save the .ogg files.
+echo (A folder called "%pakName%" will be added to it.)
+CALL :AcquireResource "ConCoFo" path_convert FALSE %path_convert% path_convert
+set convertSubFolder=%path_convert%\%pakName%
+
 echo How many conversions would you like to run in paraller^?
 echo 3 is recommended. 9 will absolutely melt your computer.
 CALL :AskNumber "ConTC" threadCount 1 9 3
 
-CALL :GetFileName %sourceFolder% subFolderName
-set convertSubFolder=%targetFolder%\%subFolderName%
-
 echo Launchin %threadCount% conversion threads...
 CALL :MakeFolder %convertSubFolder%
-FOR /L %%t IN (2, 1, %threadCount%) DO START /LOW "ConversionThread-%%t" MainProgram.bat "Thread" %%t %ww2oggPath% %packedCodebooksPath% %revorbPath% %sourceFolder% %convertSubFolder%
-CALL :ManageThread 1 %ww2oggPath% %packedCodebooksPath% %revorbPath% %sourceFolder% %convertSubFolder%
+FOR /L %%t IN (2, 1, %threadCount%) DO START /LOW "ConversionThread-%%t" MainProgram.bat "Thread" %%t %ww2oggPath% %packedCodebooksPath% %revorbPath% %extractSubFolder% %convertSubFolder%
+CALL :ManageThread 1 %path_ww2ogg% %path_packedCodebooks% %path_revorb% %extractSubFolder% %convertSubFolder%
 
 CALL :Sleep 5 "File cleaning will begin in a moment." "Starting cleaning."
 CALL :CleanTemps %convertSubFolder%
 
-CALL :PrintConvertEndTutorial %sourceFolder% %convertSubFolder%
+CALL :PrintConvertEndTutorial %extractSubFolder% %convertSubFolder%
 EXIT /B 0
 
 
@@ -728,31 +747,25 @@ EXIT /B 0
 echo This utility patches a .pak file.
 echo.
 
-CALL :AcquireFile "PacQGMS" quickBmsPath  %path_quickBms%  path_quickBms
-CALL :AcquireFile "PacBMSS" bmsScriptPath %type_bmsScript% path_bmsScript
-CALL :AcquireFile "PacPFP"  pakFilePath   %type_pak%
+CALL :AcquireResource "PacQGMS" path_quickBms   TRUE  %path_quickBms%   path_quickBms
+CALL :AcquireResource "PacBMSS" path_bmsScript  TRUE  %path_bmsScript%  path_bmsScript
+CALL :AcquireResource "PacPFP"  pakFilePath     FALSE %path_bmsScript%  ""
 
 CALL :GetFileName %pakFilePath% pakName
 
 CALL :AskBoolean "PackInFi" includeFiles "YES" "Would you like to add sound files to %pakName%.pak?"
 IF %includeFiles% == TRUE (
-    set defaultIncludeFolder=%path_convert%\%pakName%\%folder_include%
-    CALL :GetFolderPath !defaultIncludeFolder! defaultIncludePath
-    IF NOT EXIST !defaultIncludePath! set defaultIncludePath=""
-    CALL :AskFolder "PacInFo" includeFolder !defaultIncludePath! "Select the folder from which you want to include sound files (.ogg OR .wem)." "the .ogg OR .wem files to include in the %pakName%.pak"
+    CALL :FindExistingResource defaultIncludePath "%path_convert%\%pakName%\%folder_include%" "%path_extract%\%pakName%\%folder_include%"
+    CALL :AcquireResource "PacInFo" includeFolder FALSE !defaultIncludePath! "" "Select the folder from which you want to include %pakName%.pak sound files. (.ogg OR .wem OR .fake)
 
-    set defaultWemFolder=%path_extract%\%pakName%
-    CALL :GetFolderPath !defaultWemFolder! defaultWemPath
-    IF NOT EXIST !defaultWemPath! set defaultWemPath=""
-    CALL :AskFolder "PacWeFo" wemFolder !defaultWemPath! "Select the folder where the .wem files from %pakName%.pak have been extracted to." "all of the .wem files extracted from %pakName%.pak"
+    CALL :FindExistingResource defaultWemPath "%path_extract%\%pakName%"
+    CALL :AcquireResource "PacWeFo" wemFolder FALSE !defaultWemPath! "" "Select the folder where the .wem files from %pakName%.pak have been extracted to."
 )
 
 CALL :AskBoolean "PacExFi" excludeFiles "YES" "Would you like to remove sound files from %pakName%?"
 IF %excludeFiles% == TRUE (
-    set defaultExcludeFolder=%path_convert%\%pakName%\%folder_exclude%
-    CALL :GetFolderPath !defaultExcludeFolder! defaultExcludePath
-    IF NOT EXIST !defaultExcludePath! set defaultExcludePath=""
-    CALL :AskFolder "PacExFo" excludeFolder !defaultExcludePath! "Select the folder from which you want to exclude sound files (.ogg OR .wem OR .fake)." "the folder with the .ogg OR .wem OR .fake files you want to remove from %pakName%.pak"
+    CALL :FindExistingResource defaultExcludePath "%path_convert%\%pakName%\%folder_exclude%"
+    CALL :AskResource "PacExFo" excludeFolder !defaultExcludePath! "" FALSE "Select the folder from which you want to exclude sound files. (.ogg OR .wem OR .fake)"
 )
 
 IF %includeFiles% == FALSE IF %excludeFiles% == FALSE (
@@ -789,7 +802,7 @@ IF %excludeFiles% == TRUE FOR %%e IN ("%excludeFolder%\*.*") DO COPY            
 
 echo Launching QuickBMS...
 echo %pakFileEncryptionKey% > "%path_tempKey%"
-%quickBmsPath% -o -w -r %bmsScriptPath% %pakFilePath% %path_tempFiles% <%path_tempKey%
+%path_quickBms% -o -w -r %type_bmsScript% %pakFilePath% %path_tempFiles% <%path_tempKey%
 DEL %path_tempKey%
 
 CALL :RemoveFolder %path_tempFiles%
@@ -805,17 +818,15 @@ EXIT /B 0
 echo This utility saves the audio files from selected subfolders into a save file.
 echo.
 
-CALL :AcquireFile "SerPFP" pakFilePath %type_pak%
+CALL :AcquireResource "SerPFP" pakFilePath TRUE %type_pak% ""
 CALL :GetFileName %pakFilePath% pakName
 
-set defaultConvertedFolder=%path_convert%\%pakName%
-CALL :GetFolderPath !defaultConvertedFolder! defaultConvertedPath
-IF NOT EXIST !defaultConvertedPath! set defaultConvertedPath=""
-CALL :AskFolder "SerCoFo" convertedFolder !defaultConvertedPath! "Select the folder containing sorted .ogg OR .wem you'd like to save." "the folder from which you'd like to save the sorted .ogg OR .wem files"
+CALL :FindExistingResource defaultConvertedPath "%path_convert%\%pakName%"
+CALL :AcquireResource "SerCoFo" convertedFolder FALSE !defaultConvertedPath! "" "Select the folder containing sorted .ogg OR .wem you'd like to save." "the folder from which you'd like to save the sorted .ogg OR .wem files"
 
 CALL :AskString "SerFiNa" saveName "" "Name for save file"
 set saveName=%saveName%.%pakName%.BL3AU
-CALL :AskFolder "SerSaFo" saveFolder %path_current:~0,-1% "Select folder to which you'd like to send the "!saveName!" save file." "the folder to where you'd like to send the "!saveName!" save file"
+CALL :AcquireResource "SerSaFo" saveFolder FALSE %path_current% "" "Select folder to which you'd like to send the "!saveName!" save file." "the folder to where you'd like to send the "!saveName!" save file"
 set saveFile=%saveFolder%\%saveName%
 
 set /A subFolderCount=0
@@ -898,7 +909,7 @@ EXIT /B 0
 echo This utility loads .BL3AU save files to the directory.
 echo.
 
-CALL :AcquireFile "DesSaFi" saveFile %type_save%
+CALL :AcquireResource "DesSaFi" saveFile TRUE %type_save% ""
 
 set savePackage=FALSE
 set /A pakFileCount=0
@@ -936,11 +947,8 @@ set function_loopPackages=FOR /L %%p IN (1, 1, !pakFileCount!) DO
     CALL :AskBoolean "DesRePa-%%p" doLoadPackage[%%p] "" "Have you extracted or converted the the files from !packageNames[%%p]!?"
 
     IF !doLoadPackage[%%p]! == TRUE (
-        set defaultResourceFolder=%path_convert%\!pakName[%%p]!
-        IF NOT EXIST !defaultResourceFolder! set defaultResourceFolder=%path_extract%\!pakName[%%p]!
-        IF NOT EXIST !defaultResourceFolder! set defaultResourceFolder=""
-
-        CALL :AskFolder "DesRePa-%%p" resourcePaths[%%p] !defaultResourceFolder! "Select the folder where you have converted (.ogg) or extracted (.wem) the files from !packageNames[%%p]! to." "the folder where you have converted or extracted !packageNames[%%p]! files to"
+        CALL :FindExistingResource defaultResourceFolder "%path_convert%\!pakName[%%p]!" "%path_extract%\!pakName[%%p]!"
+        CALL :AcquireResource "DesRePa-%%p" resourcePaths[%%p] FALSE !defaultResourceFolder! "" "Select the folder where you have converted (.ogg) or extracted (.wem) the files from !packageNames[%%p]! to." "the folder where you have converted or extracted !packageNames[%%p]! files to"
 
         FOR %%f IN ("!resourcePaths[%%p]!\*.*") DO (
             IF %%~xf == %type_wem% set loadFormats[%%p]=%type_wem%
@@ -1089,5 +1097,110 @@ echo.
 EXIT /B 0
 
 
+
+
+
+
+
+@REM Desc;  Function for helping testing :AcquireResource function
+:Test_AcquireResource
+@REM Params;    none
+@REM Notes;
+@REM    - This test deleted the config file
+@REM    - Really needs more automation to be more robust
+@REM    - Not worth it
+@REM    - Functions should be callable from outside this .bat file so test data & cases can be stored there
+@REM        - OperationMode: Test, Func: "functionName", ...functionParams
+@REM        - IF "!operationMode!" == "Test" CALL :%~2 %3 %4 %5 %6 %7 %8 %9
+
+:   Test parameters
+:   1: Resource
+:   1.1: Name (Folder)
+:   1.2: .Extension
+:   1.3: File.Extension
+:   2: Config key
+:   2.1: Not specified
+:   2.1: Not saved
+:   2.2: Saved & valid
+:   2.3: Saved & invalid
+:   3: Existing
+:   3.1: Exists
+:   3.2: Doesn't exist
+
+: ToDo;
+:   4: In current directory
+:   4.1: Present in directory 
+:   4.2: Missing from directory 
+
+DEL %path_config%
+CALL :MakeFolder test\validFolder
+echo.>test\validFile.BL3AU
+CALL :SaveToConfig test_invalidFolder %path_current%\test\invalidFolder
+CALL :SaveToConfig test_validFolder   %path_current%\test\validFolder
+CALL :SaveToConfig test_invalidFile   %path_current%\test\invalidFile.BL3AU
+CALL :SaveToConfig test_validFile     %path_current%\test\validFile.BL3AU
+
+ECHO 1.1: Folder,    2.1: No key,        3.1: Old, "!out!"
+CALL :AcquireResource "111" out TRUE "test"       ""                  "Question string.exe"
+ECHO 1.2: Extension, 2.1: No key,        3.1: Old, "!out!"
+CALL :AcquireResource "211" out TRUE ".BL3AU"     ""                  "Question string.exe"
+ECHO 1.3: File,      2.1: No key,        3.1: Old, "!out!"
+CALL :AcquireResource "311" out TRUE "fil1.BL3AU" ""                  "Question string.exe"
+
+ECHO 1.1: Folder,    2.2: Not saved,     3.1: Old, "!out!"
+CALL :AcquireResource "121" out TRUE "test"       key1                "Question string.exe"
+ECHO 1.2: Extension, 2.2: Not saved,     3.1: Old, "!out!"
+CALL :AcquireResource "221" out TRUE ".BL3AU"     key2                "Question string.exe"
+ECHO 1.3: File,      2.2: Not saved,     3.1: Old, "!out!"
+CALL :AcquireResource "321" out TRUE "fil1.BL3AU" key3                "Question string.exe"
+
+ECHO 1.1: Folder,    2.3: Saved valid,   3.1: Old, "!out!"
+CALL :AcquireResource "131" out TRUE "test"       test_validFolder    "Question string.exe"
+ECHO 1.2: Extension, 2.3: Saved valid,   3.1: Old, "!out!"
+CALL :AcquireResource "231" out TRUE ".BL3AU"     test_validFile      "Question string.exe"
+ECHO 1.3: File,      2.3: Saved valid,   3.1: Old, "!out!"
+CALL :AcquireResource "331" out TRUE "fil1.BL3AU" test_validFile      "Question string.exe"
+
+ECHO 1.1: Folder,    2.4: Saved invalid, 3.1: Old, "!out!"
+CALL :AcquireResource "141" out TRUE "test"       test_invalidFolder  "Question string.exe"
+ECHO 1.2: Extension, 2.4: Saved invalid, 3.1: Old, "!out!"
+CALL :AcquireResource "241" out TRUE ".BL3AU"     test_invalidFile    "Question string.exe"
+ECHO 1.3: File,      2.4: Saved invalid, 3.1: Old, "!out!"
+CALL :AcquireResource "341" out TRUE "fil1.BL3AU" test_invalidFile    "Question string.exe"
+
+
+
+ECHO 1.1: Folder,    2.1: No key,        3.2: New, "!out!"
+CALL :AcquireResource "112" out FALSE "test"       ""                 "Question string.exe"
+ECHO 1.2: Extension, 2.1: No key,        3.2: New, "!out!"
+CALL :AcquireResource "212" out FALSE ".BL3AU"     ""                 "Question string.exe"
+ECHO 1.3: File,      2.1: No key,        3.2: New, "!out!"
+CALL :AcquireResource "312" out FALSE "fil1.BL3AU" ""                 "Question string.exe"
+
+ECHO 1.1: Folder,    2.2: Not saved,     3.2: New, "!out!"
+CALL :AcquireResource "122" out FALSE "test"       key4               "Question string.exe"
+ECHO 1.2: Extension, 2.2: Not saved,     3.2: New, "!out!"
+CALL :AcquireResource "222" out FALSE ".BL3AU"     key5               "Question string.exe"
+ECHO 1.3: File,      2.2: Not saved,     3.2: New, "!out!"
+CALL :AcquireResource "322" out FALSE "fil1.BL3AU" key6               "Question string.exe"
+
+ECHO 1.1: Folder,    2.3: Saved valid,   3.2: New, "!out!"
+CALL :AcquireResource "132" out FALSE "test"       test_validFolder   "Question string.exe"
+ECHO 1.2: Extension, 2.3: Saved valid,   3.2: New, "!out!"
+CALL :AcquireResource "232" out FALSE ".BL3AU"     test_validFile     "Question string.exe"
+ECHO 1.3: File,      2.3: Saved valid,   3.2: New, "!out!"
+CALL :AcquireResource "332" out FALSE "fil1.BL3AU" test_validFile     "Question string.exe"
+
+ECHO 1.1: Folder,    2.4: Saved invalid, 3.2: New, "!out!"
+CALL :AcquireResource "142" out FALSE "test"       test_invalidFolder "Question string.exe"
+ECHO 1.2: Extension, 2.4: Saved invalid, 3.2: New, "!out!"
+CALL :AcquireResource "242" out FALSE ".BL3AU"     test_invalidFile   "Question string.exe"
+ECHO 1.3: File,      2.4: Saved invalid, 3.2: New, "!out!"
+CALL :AcquireResource "342" out FALSE "fil1.BL3AU" test_invalidFile   "Question string.exe"
+
+
+DEL %path_config%
+CALL :RemoveFolder test
+EXIT
 
 EndLocal
